@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 import javax.smartcardio.ATR;
 import javax.smartcardio.Card;
@@ -310,7 +309,9 @@ public class Smartcardio {
 		@Override public Card getCard() {return card;}
 		@Override public int getChannelNumber() {return channel & 0xff;}
 		@Override public ResponseAPDU transmit(CommandAPDU command) throws CardException {
-			Objects.requireNonNull(command, "command");
+			if (command == null) {
+				throw new IllegalArgumentException("command is null");
+			}
 			byte[] commandCopy = command.getBytes();
 			ByteBuffer response = transmitImpl(commandCopy, null);
 
@@ -366,8 +367,12 @@ public class Smartcardio {
 		 * Le is either 00-ff (00=256) or 0000-ffff. (0000=65536)
 		 */
 		@Override public int transmit(ByteBuffer command, ByteBuffer response) throws CardException {
-			Objects.requireNonNull(response, "response");
-			Objects.requireNonNull(command, "command");
+			if (command == null) {
+				throw new IllegalArgumentException("command is null");
+			}
+			if (response == null) {
+				throw new IllegalArgumentException("response is null");
+			}
 			byte[] copy = new byte[command.remaining()];
 			command.get(copy);
 			command = ByteBuffer.wrap(copy);
