@@ -8,7 +8,9 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 
 import javax.smartcardio.ATR;
 import javax.smartcardio.Card;
@@ -63,9 +65,14 @@ public class Smartcardio {
 	public static class JnaCardTerminals extends CardTerminals {
 		private final Winscard.SCardContext scardContext;
 		private final Winscard.WinscardLibInfo libInfo;
+	    // terminal state used by waitForCard()
+	    private final Map<String, Integer> stateMap;
+		
+		
 		public JnaCardTerminals(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
+			this.stateMap = new Hashtable<String, Integer>();
 		}
 		@Override public List<CardTerminal> list(State state) throws CardException {
 			IntByReference pcchReaders = new IntByReference();
@@ -91,8 +98,63 @@ public class Smartcardio {
 			throw new JnaPCSCException(err, "SCardListReaders");
 		}
 	
+		// heavily inspired by OpenJDK sun.security.smartcardio.PCSCTerminals
 		@Override public boolean waitForChange(long timeoutMs) throws CardException {
-			return false;
+
+			if (timeoutMs == 0) {
+				timeoutMs = TIMEOUT_INFINITE;
+			}
+			
+			// list the readers and their states
+			IntByReference pcchReaders = new IntByReference();
+			long err = libInfo.lib.SCardListReaders(scardContext, null, null, pcchReaders).longValue();
+			byte[] mszReaders = null;
+			if (err == SCARD_S_SUCCESS) {
+				mszReaders = new byte[pcchReaders.getValue()];
+				err = libInfo.lib.SCardListReaders(scardContext, null, ByteBuffer.wrap(mszReaders), pcchReaders).longValue();
+			}
+
+			switch ((int)err) {
+			case SCARD_S_SUCCESS:
+				break;
+			case SCARD_E_NO_READERS_AVAILABLE:
+			case SCARD_E_READER_UNAVAILABLE:
+				throw new IllegalStateException("No terminals available"); // emulate OpenJDK PSCSTerminals behavior
+			}
+
+			// populate the reader states
+			List<String> readerNames = pcsc_multi2jstring(mszReaders);
+			if (readerNames.size() == 0) {
+				throw new IllegalStateException("No terminals available"); // emulate OpenJDK PSCSTerminals behavior
+			}
+			
+			// get reader states for available readers, honoring previous states
+			Winscard.SCardReaderState[] readerStates = new Winscard.SCardReaderState[readerNames.size()];
+			for (int i = 0; i < readerNames.size(); i++) {
+				final String readerName = readerNames.get(i);
+				Integer readerState = stateMap.get(readerName);
+				if (readerState == null) {
+					readerState = Integer.valueOf(0); // SCARD_STATE_UNAWARE
+					stateMap.put(readerName, readerState);
+				}
+				readerStates[i] = new Winscard.SCardReaderState(readerName);
+				readerStates[i].dwCurrentState = readerState.intValue();
+			}
+			
+			err = libInfo.lib.SCardGetStatusChange(scardContext, (int)timeoutMs, readerStates, readerStates.length).longValue();
+			switch ((int)err) {
+			case SCARD_S_SUCCESS:
+				// update states
+				stateMap.clear();
+				for (Winscard.SCardReaderState freshState : readerStates) {
+					stateMap.put(freshState.szReader, Integer.valueOf(freshState.dwEventState));
+				}
+				break;
+			default:
+				throw new IllegalStateException("No terminals available"); // emulate OpenJDK PSCSTerminals behavior
+			}
+			
+			return true;
 		}
 	}
 
@@ -598,13 +660,17 @@ public class Smartcardio {
 	public static final int SCARD_E_NO_READERS_AVAILABLE = 0x8010002E;
 	public static final int SCARD_E_READER_UNAVAILABLE = 0x80100017;
 	public static final int SCARD_E_NO_SMARTCARD = 0x8010000C;
-
+	private static final int TIMEOUT_INFINITE = 0xffffffff;
+	
 	/**
 	 * Named affectionately after the function I've seen in crash logs so often
 	 * from libj2pcsc on OS X java7.
 	 * @param  
 	 */
 	public static List<String> pcsc_multi2jstring(byte[] multiString, Charset charset) {
+		if (multiString == null) {
+			throw new IllegalArgumentException("multiString can not be null");
+		}
 		List<String> r = new ArrayList<String>();
 		int from = 0, to = 0;
 		for (; to < multiString.length; to++) {
