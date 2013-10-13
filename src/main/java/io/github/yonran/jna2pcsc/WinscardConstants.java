@@ -3,8 +3,11 @@
  * copyright and related or neighboring rights to work.
  */
 package io.github.yonran.jna2pcsc;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 
@@ -146,4 +149,38 @@ class WinscardConstants {
 		ERROR_TO_VARIABLE_NAME = Collections.unmodifiableMap(a);
 		ERROR_TO_DESCRIPTION = Collections.unmodifiableMap(b);
 	}
+
+	// Bit masks used by waitFor* methods for SCardGetStatusChange
+	public static final int SCARD_STATE_UNAWARE = 0x0000;
+	public static final int SCARD_STATE_IGNORE = 0x0001;
+	public static final int SCARD_STATE_CHANGED = 0x0002;
+	public static final int SCARD_STATE_UNKNOWN = 0x0004;
+	public static final int SCARD_STATE_UNAVAILABLE = 0x0008;
+	public static final int SCARD_STATE_EMPTY = 0x0010;
+	public static final int SCARD_STATE_PRESENT = 0x0020;
+	public static final int SCARD_STATE_ATRMATCH = 0x0040;
+	public static final int SCARD_STATE_EXCLUSIVE = 0x0080;
+	public static final int SCARD_STATE_INUSE = 0x0100;
+	public static final int SCARD_STATE_MUTE = 0x0200;
+	public static final int SCARD_STATE_UNPOWERED = 0x0400;
+	public static List<String> stateToStrings(int scardState) {
+		if (0 == scardState) return Arrays.asList("unaware");
+		List<String> r = new ArrayList<String>();
+		if (0 != (scardState & SCARD_STATE_IGNORE)) r.add("ignore");
+		if (0 != (scardState & SCARD_STATE_CHANGED)) r.add("changed");
+		if (0 != (scardState & SCARD_STATE_UNKNOWN)) r.add("unknown");
+		if (0 != (scardState & SCARD_STATE_UNAVAILABLE)) r.add("unavailable");
+		if (0 != (scardState & SCARD_STATE_EMPTY)) r.add("empty");
+		if (0 != (scardState & SCARD_STATE_PRESENT)) r.add("present");
+		if (0 != (scardState & SCARD_STATE_ATRMATCH)) r.add("atrmatch");
+		if (0 != (scardState & SCARD_STATE_EXCLUSIVE)) r.add("exclusive");
+		if (0 != (scardState & SCARD_STATE_INUSE)) r.add("inuse");
+		if (0 != (scardState & SCARD_STATE_MUTE)) r.add("mute");
+		if (0 != (scardState & SCARD_STATE_UNPOWERED)) r.add("unpowered");
+		return r;
+	}
+	/** Infinite timeout for SCardGetStatusChange */
+	public static final int INFINITE = 0xffffffff;
+	public static final int MAX_ATR_SIZE = 33;
+	public static final String PNP_READER_ID = "\\\\?PnP?\\Notification";
 }

@@ -3,6 +3,9 @@
  * copyright and related or neighboring rights to work.
  */
 package io.github.yonran.jna2pcsc;
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
@@ -70,7 +73,42 @@ class Winscard {
 		public ScardIoRequest() {super();}
 		public ScardIoRequest(Pointer p) {super(p);}
 	}
-	public static class SCardReaderState extends Structure {
+
+	/**
+	 * Interface to wrap the particular SCARD_READERSTATE declaration on the
+	 * platform. Unfortunately, each platform has a different type:
+	 * 
+	 * <ul>
+	 * <li>Windows has extra padding after rgbAtr, so that the structure is
+	 * aligned at word boundaries even when it is in an array
+	 * SCARD_READERSTATE[]
+	 * <li>OSX has no extra padding around rgbAtr, so that array elements are
+	 * not word-aligned.
+	 * <li>Linux pcsclite has no extra padding around rgbAtr. In addition, DWORD
+	 * is typedef'd to long instead of int.
+	 * </ul>
+	 */
+	public interface SCardReaderState {
+		public void setReaderName(String szReader);
+		public String getReaderName();
+		public void setCurrentState(int dwCurrentState);
+		public int getCurrentState();
+		public void setEventState(int dwEventState);
+		public int getEventState();
+		public void toArray(SCardReaderState[] array);
+		public int getAtrLength();
+		public void setAtrLength(int cbAtr);
+		public byte[] getAtrArray();
+	}
+	/**
+	 * On Windows, SCardReaderState is explicitly aligned to word boundaries.
+	 * 
+	 * <p>
+	 * sizeof(SCARD_READERSTATE_A):<br>
+	 * windows x86: 4+4+4+4+4+36 = 56<br>
+	 * windows x64: 8+8+4+4+4+36 = 64
+	 */
+	public static class WinscardSCardReaderState extends Structure implements SCardReaderState {
 		// const char *szReader;
 		public String szReader;
 		// void *pvUserData;
@@ -81,13 +119,78 @@ class Winscard {
 		public int dwEventState;
 		// uint32_t cbAtr;
 		public int cbAtr;
-		// unsigned char rgbAtr[MAX_ATR_SIZE];
-		public byte[] rgbAtr = new byte[Smartcardio.MAX_ATR_SIZE];
-		public SCardReaderState(){}
-		public SCardReaderState(String szReader) {this.szReader = szReader;}
+		public byte[] rgbAtr = new byte[WinscardConstants.MAX_ATR_SIZE];
+		protected WinscardSCardReaderState(int align){super(align);}
+		public WinscardSCardReaderState(){super(); assert this.size() == Pointer.SIZE * 2 + 12 + 36;}
+		public WinscardSCardReaderState(String szReader) {this(); this.szReader = szReader;}
 		@Override protected List<String> getFieldOrder() {
 			return Arrays.asList("szReader", "pvUserData", "dwCurrentState", "dwEventState", "cbAtr", "rgbAtr");
 		}
+		@Override public void setReaderName(String szReader) { this.szReader = szReader; }
+		@Override public String getReaderName() {return this.szReader;}
+		@Override public void setCurrentState(int dwCurrentState) {this.dwCurrentState = (int) dwCurrentState;}
+		@Override public int getCurrentState() {return this.dwCurrentState;}
+		@Override public void setEventState(int dwEventState) {this.dwEventState = (int) dwEventState;}
+		@Override public int getEventState() {return this.dwEventState;}
+		@Override public void toArray(SCardReaderState[] array) {super.toArray((Structure[])array);}
+		@Override public int getAtrLength() {return cbAtr;}
+		@Override public void setAtrLength(int cbAtr) {this.cbAtr = cbAtr;}
+		@Override public byte[] getAtrArray() {return this.rgbAtr;}
+	}
+	
+	/**
+	 * On OS X, the fields of SCardReaderState are the same size as Windows, but
+	 * it is not aligned to word boundaries
+	 * 
+	 * <p>
+	 * sizeof(SCARD_READERSTATE_A):<br>
+	 * osx x86: 4+4+4+4+4+33 = 53<br>
+	 * osx x64: 8+8+4+4+4+33 = 61
+	 */
+	public static class OSXSCardReaderState extends WinscardSCardReaderState {
+		public OSXSCardReaderState(){super(ALIGN_NONE); assert this.size() == Pointer.SIZE * 2 + 12 + 33;}
+		public OSXSCardReaderState(String szReader) {this(); this.szReader = szReader;}
+		@Override protected List<String> getFieldOrder() {
+			return Arrays.asList("szReader", "pvUserData", "dwCurrentState", "dwEventState", "cbAtr", "rgbAtr");
+		}
+	}
+	
+	/**
+	 * On Linux, the fields are long, and SCardReaderState is not aligned to
+	 * word boundaries
+	 * 
+	 * <p>
+	 * sizeof(SCARD_READERSTATE_A):<br>
+	 * linux x86: 4+4+4+4+4+33 = 53<br>
+	 * linux x64: 8+8+8+8+8+36 = 76
+	 */
+	public static class LinuxSCardReaderState extends Structure implements SCardReaderState {
+		// const char *szReader;
+		public String szReader;
+		// void *pvUserData;
+		public Pointer pvUserData;
+		// DWORD dwCurrentState;
+		public NativeLong dwCurrentState;
+		// DWORD dwEventState;
+		public NativeLong dwEventState;
+		// DWORD cbAtr;
+		public NativeLong cbAtr;
+		public byte[] rgbAtr = new byte[WinscardConstants.MAX_ATR_SIZE];
+		public LinuxSCardReaderState(){super(ALIGN_NONE); assert this.size() == Pointer.SIZE * 2 + NativeLong.SIZE * 3 + 33;}
+		public LinuxSCardReaderState(String szReader) {this(); this.szReader = szReader;}
+		@Override protected List<String> getFieldOrder() {
+			return Arrays.asList("szReader", "pvUserData", "dwCurrentState", "dwEventState", "cbAtr", "rgbAtr");
+		}
+		@Override public void setReaderName(String szReader) { this.szReader = szReader; }
+		@Override public String getReaderName() {return this.szReader;}
+		@Override public void setCurrentState(int dwCurrentState) {this.dwCurrentState = new NativeLong(0xffffffffl & dwCurrentState);}
+		@Override public int getCurrentState() {return this.dwCurrentState == null ? 0 : (int)this.dwCurrentState.longValue();}
+		@Override public void setEventState(int dwEventState) {this.dwEventState = new NativeLong(0xffffffffl & dwEventState);}
+		@Override public int getEventState() {return this.dwEventState == null ? 0 : (int)this.dwEventState.longValue();}
+		@Override public void toArray(SCardReaderState[] array) {super.toArray((Structure[])array);}
+		@Override public int getAtrLength() {return cbAtr == null ? 0 : cbAtr.intValue();}
+		@Override public void setAtrLength(int cbAtr) {this.cbAtr = new NativeLong(cbAtr);}
+		@Override public byte[] getAtrArray() {return this.rgbAtr;}
 	}
 	public static final String WINDOWS_PATH = "WinSCard.dll";
 	public static final String MAC_PATH = "/System/Library/Frameworks/PCSC.framework/PCSC";
@@ -288,11 +391,31 @@ class Winscard {
 		public final ScardIoRequest SCARD_PCI_T0;
 		public final ScardIoRequest SCARD_PCI_T1;
 		public final ScardIoRequest SCARD_PCI_RAW;
-		public WinscardLibInfo(WinscardLibrary lib, ScardIoRequest SCARD_PCI_T0, ScardIoRequest SCARD_PCI_T1, ScardIoRequest SCARD_PCI_RAW) {
+		private final Class<? extends SCardReaderState> scardReaderStateClass;
+		private final Constructor<? extends SCardReaderState> scardReaderStateConstructor;
+		public WinscardLibInfo(WinscardLibrary lib, ScardIoRequest SCARD_PCI_T0, ScardIoRequest SCARD_PCI_T1, ScardIoRequest SCARD_PCI_RAW, Class<? extends SCardReaderState> scardReaderStateClass, Constructor<? extends SCardReaderState> scardReaderStateConstructor) {
 			this.lib = lib;
 			this.SCARD_PCI_T0 = SCARD_PCI_T0;
 			this.SCARD_PCI_T1 = SCARD_PCI_T1;
 			this.SCARD_PCI_RAW = SCARD_PCI_RAW;
+			this.scardReaderStateClass = scardReaderStateClass;
+			this.scardReaderStateConstructor = scardReaderStateConstructor;
+		}
+		public SCardReaderState[] createSCardReaderStateArray(int n) {
+			return (SCardReaderState[]) Array.newInstance(scardReaderStateClass, n);
+		}
+		public SCardReaderState createSCardReaderState() {
+			try {
+				return scardReaderStateConstructor.newInstance();
+			} catch (InstantiationException e) {
+				throw new IllegalStateException();
+			} catch (IllegalAccessException e) {
+				throw new IllegalStateException();
+			} catch (IllegalArgumentException e) {
+				throw new IllegalStateException();
+			} catch (InvocationTargetException e) {
+				throw new IllegalStateException();
+			}
 		}
 	}
 	public static WinscardLibInfo openLib() {
@@ -304,11 +427,24 @@ class Winscard {
 			PcscLiteLibrary linuxPcscLib = (PcscLiteLibrary) Native.loadLibrary(libraryName, PcscLiteLibrary.class);
 			lib = new PcscLiteAdapter(linuxPcscLib);
 		}
+		Class<? extends SCardReaderState> scardReaderStateClass;
+		Constructor<? extends SCardReaderState> scardReaderStateConstructor;
+		try {
+			scardReaderStateClass = 
+				Platform.isWindows() ? WinscardSCardReaderState.class :
+				Platform.isMac() ? OSXSCardReaderState.class:
+				LinuxSCardReaderState.class;
+			scardReaderStateConstructor = scardReaderStateClass.getConstructor();
+		} catch (NoSuchMethodException e) {
+			throw new IllegalStateException();
+		} catch (SecurityException e) {
+			throw new IllegalStateException();
+		}
 		NativeLibrary nativeLibrary = NativeLibrary.getInstance(libraryName);
 		// SCARD_PCI_* is #defined to the following symbols (both pcsclite and winscard)
 		ScardIoRequest SCARD_PCI_T0 = new ScardIoRequest(nativeLibrary.getGlobalVariableAddress("g_rgSCardT0Pci"));
 		ScardIoRequest SCARD_PCI_T1 = new ScardIoRequest(nativeLibrary.getGlobalVariableAddress("g_rgSCardT1Pci"));
 		ScardIoRequest SCARD_PCI_RAW = new ScardIoRequest(nativeLibrary.getGlobalVariableAddress("g_rgSCardRawPci"));
-		return new WinscardLibInfo(lib, SCARD_PCI_T0, SCARD_PCI_T1, SCARD_PCI_RAW);
+		return new WinscardLibInfo(lib, SCARD_PCI_T0, SCARD_PCI_T1, SCARD_PCI_RAW, scardReaderStateClass, scardReaderStateConstructor);
 	}
 }
