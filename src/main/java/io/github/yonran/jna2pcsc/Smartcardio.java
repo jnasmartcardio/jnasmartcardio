@@ -145,7 +145,7 @@ public class Smartcardio extends Provider {
 			}
 			
 			// get reader states for available readers, honoring previous states
-			Winscard.SCardReaderState[] readerStates = new Winscard.SCardReaderState[readerNames.size()];
+			Winscard.SCardReaderState[] readerStates = (Winscard.SCardReaderState[])new Winscard.SCardReaderState().toArray(readerNames.size());
 			for (int i = 0; i < readerNames.size(); i++) {
 				final String readerName = readerNames.get(i);
 				Integer readerState = stateMap.get(readerName);
@@ -153,10 +153,10 @@ public class Smartcardio extends Provider {
 					readerState = Integer.valueOf(0); // SCARD_STATE_UNAWARE
 					stateMap.put(readerName, readerState);
 				}
-				readerStates[i] = new Winscard.SCardReaderState(readerName);
+				readerStates[i].szReader = readerName;
 				readerStates[i].dwCurrentState = readerState.intValue();
 			}
-			
+
 			err = libInfo.lib.SCardGetStatusChange(scardContext, (int)timeoutMs, readerStates, readerStates.length).longValue();
 			switch ((int)err) {
 			case SCARD_S_SUCCESS:
