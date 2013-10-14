@@ -5,6 +5,7 @@
 package io.github.yonran.jna2pcsc;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,9 +28,19 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.ptr.IntByReference;
 
 
-public class Smartcardio {
+public class Smartcardio extends Provider {
+	
+	private static final long serialVersionUID = 1L;
+	
 	static final int MAX_ATR_SIZE = 33;
 
+	public static final String PROVIDER_NAME = "JNA2PCSC";
+	
+	public Smartcardio() {
+		super(PROVIDER_NAME, 0.0d, "JNA-to-PCSC Provider");
+		put("TerminalFactory.PC/SC", "io.github.yonran.jna2pcsc.Smartcardio$JnaTerminalFactorySpi");
+	}
+	
 	public static class JnaTerminalFactorySpi extends TerminalFactorySpi {
 		public static final int SCARD_SCOPE_USER = 0;
 		public static final int SCARD_SCOPE_TERMINAL = 1;
@@ -37,16 +48,21 @@ public class Smartcardio {
 		private final Winscard.WinscardLibInfo libInfo;
 		private final Winscard.SCardContext scardContext;
 		private boolean isClosed;
+		
+		public JnaTerminalFactorySpi(Object parameter) {
+			this.libInfo = Winscard.openLib();
+			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
+			try {
+				check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
+			} catch (JnaPCSCException e) {
+				throw new IllegalStateException(e);
+			}
+			this.scardContext = phContext.getValue();
+		}
+		
 		public JnaTerminalFactorySpi(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
-		}
-		public static JnaTerminalFactorySpi establishContext() throws CardException {
-			Winscard.WinscardLibInfo libInfo = Winscard.openLib();
-			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
-			check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
-			Winscard.SCardContext scardContext = phContext.getValue();
-			return new JnaTerminalFactorySpi(libInfo, scardContext);
 		}
 		@Override public CardTerminals engineTerminals() {
 			return new JnaCardTerminals(libInfo, scardContext);
