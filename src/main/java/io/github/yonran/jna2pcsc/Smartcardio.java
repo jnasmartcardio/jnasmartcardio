@@ -7,6 +7,7 @@ import io.github.yonran.jna2pcsc.Winscard.SCardReaderState;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,9 +30,19 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.ptr.IntByReference;
 
 
-public class Smartcardio {
+public class Smartcardio extends Provider {
+	
+	private static final long serialVersionUID = 1L;
+	
 	static final int MAX_ATR_SIZE = 33;
 
+	public static final String PROVIDER_NAME = "JNA2PCSC";
+	
+	public Smartcardio() {
+		super(PROVIDER_NAME, 0.0d, "JNA-to-PCSC Provider");
+		put("TerminalFactory.PC/SC", "io.github.yonran.jna2pcsc.Smartcardio$JnaTerminalFactorySpi");
+	}
+	
 	public static class JnaTerminalFactorySpi extends TerminalFactorySpi {
 		public static final int SCARD_SCOPE_USER = 0;
 		public static final int SCARD_SCOPE_TERMINAL = 1;
@@ -39,33 +50,37 @@ public class Smartcardio {
 		private final Winscard.WinscardLibInfo libInfo;
 		private final Winscard.SCardContext scardContext;
 		private boolean isClosed;
-		public JnaTerminalFactorySpi(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
-			this.libInfo = libInfo;
-			this.scardContext = scardContext;
-		}
 		
 		/**
 		 * Likely exceptions
 		 * <ul>
-		 * <li>JnaPCSCException(
-		 * {@link WinscardConstants#SCARD_E_NO_READERS_AVAILABLE}) the Daemon is
-		 * not running (Windows 8, Linux). On Windows 8, the daemon is shut down
-		 * when there are no readers plugged in. New PCSC versions (at least
-		 * 1.7) also allow no new connections when there are no readers plugged
-		 * in.
-		 * <li>JnaPCSCException({@link WinscardConstants#SCARD_E_NO_SERVICE})
-		 * the Daemon is not running (OS X). On OS X (pcscd 1.4), the daemon is
-		 * shut down when there are no readers plugged in, and the library gives
-		 * this error. Can also happen on Windows when you don't have
-		 * permission.
+		 * <li>IllegalStateException(JnaPCSCException(
+		 * {@link WinscardConstants#SCARD_E_NO_READERS_AVAILABLE})) the Daemon
+		 * is not running (Windows 8, Linux). On Windows 8, the daemon is shut
+		 * down when there are no readers plugged in. New PCSC versions (at
+		 * least 1.7) also allow no new connections when there are no readers
+		 * plugged in.
+		 * <li>IllegalStateException(JnaPCSCException(
+		 * {@link WinscardConstants#SCARD_E_NO_SERVICE})) the Daemon is not
+		 * running (OS X). On OS X (pcscd 1.4), the daemon is shut down when
+		 * there are no readers plugged in, and the library gives this error.
+		 * Can also happen on Windows when you don't have permission.
 		 * </ul>
 		 */
-		public static JnaTerminalFactorySpi establishContext() throws CardException {
-			Winscard.WinscardLibInfo libInfo = Winscard.openLib();
+		public JnaTerminalFactorySpi(Object parameter) {
+			this.libInfo = Winscard.openLib();
 			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
-			check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
-			Winscard.SCardContext scardContext = phContext.getValue();
-			return new JnaTerminalFactorySpi(libInfo, scardContext);
+			try {
+				check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
+			} catch (JnaPCSCException e) {
+				throw new IllegalStateException(e);
+			}
+			this.scardContext = phContext.getValue();
+		}
+		
+		public JnaTerminalFactorySpi(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
+			this.libInfo = libInfo;
+			this.scardContext = scardContext;
 		}
 		@Override public CardTerminals engineTerminals() {
 			return new JnaCardTerminals(libInfo, scardContext);
