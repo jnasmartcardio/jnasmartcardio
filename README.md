@@ -21,7 +21,7 @@ This is a Java project that only depends on JNA. We currently use Maven to downl
 There are 3 ways to use this smartcard provider instead of the one that is bundled with JRE:
 
 1. Modify &lt;java_home&gt;/jre/lib/security/java.security; replace `security.provider.9=sun.security.smartcardio.SunPCSC` with `security.provider.9=io.github.yonran.jna2pcsc.Smartcardio`. Then use `TerminalFactory.getDefault()`.
-2. Override prop -Djava.security.properties=/path/to/override.java.security (see the provided file). Then use `TerminalFactory.getDefault()`
+2. Create a file override.java.security, then add system property -Djava.security.properties=override.java.security. This should be a file that contains a line like the above. But make sure that you override the same numbered line as the existing SunPCSC in your JRE; otherwise, you may disable some other factory too! Then use `TerminalFactory.getDefault()`
 3. Explicitly call `Security.addProvider(new Smartcardio());`. Then call `TerminalFactory.getInstance("PC/SC", null, Smartcardio.PROVIDER_NAME);`
 
 Once you have a TerminalFactory, you call `cardTerminals = factory.terminals(); cardTerminals.list()`.
