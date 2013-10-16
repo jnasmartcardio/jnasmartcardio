@@ -1,10 +1,10 @@
 package io.github.yonran.jna2pcsc.tools;
 import io.github.yonran.jna2pcsc.Smartcardio;
 
+import java.security.Security;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.smartcardio.CardException;
 import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
@@ -21,12 +21,13 @@ public class WaitForChange {
 			r.add(terminals.get(i).getName());
 		return r;
 	}
-	public static void main(String[] args) throws CardException {
-		Smartcardio.JnaTerminalFactorySpi context;
+	public static void main(String[] args) throws Exception {
+		TerminalFactory context;
 		CardTerminals terminals;
 		if (true) {
-			context = Smartcardio.JnaTerminalFactorySpi.establishContext();
-			terminals = context.engineTerminals();
+			Security.addProvider(new Smartcardio());
+			context = TerminalFactory.getInstance("PC/SC", null, Smartcardio.PROVIDER_NAME);
+			terminals = context.terminals();
 		} else {
 			TerminalFactory terminalFactory = TerminalFactory.getDefault();
 			terminals = terminalFactory.terminals();
