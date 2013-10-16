@@ -9,12 +9,26 @@ Why?
 The JRE already comes with implementations of `javax.smartcardio`. What’s wrong with it? If you are already using the smartcardio API, there are a couple reasons you might consider switching to a JNA solution:
 
 * The [default smartcardio library in JRE 1.7 on 64-bit OS X is compiled incorrectly](http://mail.openjdk.java.net/pipermail/security-dev/2013-March/006913.html). In particular, `Terminal.isCardPresent()` always returns false, `Terminals.list()` occasionally causes SIGSEGV, and `Terminal.waitForCard(boolean, long)` and `Terminals.waitForChange(long)` don’t work.
-* The default smartcardio library only calls `SCardEstablishContext` once. If the daemon isn’t up yet, then your process will never be able to connect to it again.
+* The default smartcardio library only calls `SCardEstablishContext` once. If the daemon isn’t up yet, then your process will never be able to connect to it again. This is a big problem because in Windows 8, OS X, and new versions of pcscd, the daemon is not started until a reader is plugged in, and it quits when there are no more readers.
 * It’s easier to fix bugs in this project than it is to fix bugs in the libraries that are bundled with the JRE.
+
+Installation
+---
+This is a Java project that only depends on JNA. We currently use Maven to download the dependency and then compile.
+
+    mvn install
+
+There are 3 ways to use this smartcard provider instead of the one that is bundled with JRE:
+
+1. Modify &lt;java_home&gt;/jre/lib/security/java.security; replace `security.provider.9=sun.security.smartcardio.SunPCSC` with `security.provider.9=io.github.yonran.jna2pcsc.Smartcardio`. Then use `TerminalFactory.getDefault()`.
+2. Override prop -Djava.security.properties=/path/to/override.java.security (see the provided file). Then use `TerminalFactory.getDefault()`
+3. Explicitly call `Security.addProvider(new Smartcardio());`. Then call `TerminalFactory.getInstance("PC/SC", null, Smartcardio.PROVIDER_NAME);`
+
+Once you have a TerminalFactory, you call `cardTerminals = factory.terminals(); cardTerminals.list()`.
 
 Caveats
 ---
-This library is not ready for use in production. It’s incomplete; a few methods might still be no-ops. I have only tested it a very small amount in OS X. It is completely untested in Linux and Windows at the moment.
+This library is not ready for use in production. It’s incomplete; a few methods might still be no-ops. I have only tested it a very small amount.
 
 This library requires JNA to talk to the native libraries (winscard.dll, libpcsc.so, or PCSC). You can’t use this library if you are writing an applet or are otherwise using a security manager.
 
