@@ -7,6 +7,7 @@ import static org.junit.Assert.*;
 
 import io.github.yonran.jna2pcsc.Smartcardio;
 
+import java.security.Security;
 import java.util.List;
 
 import javax.smartcardio.ATR;
@@ -25,20 +26,21 @@ import org.junit.Test;
 
 /** Plug your card terminal in and insert your card before running this test. */
 public class WinscardReaderTestWithCardPresent {
-	Smartcardio.JnaTerminalFactorySpi context;
+	TerminalFactory context;
 	private CardTerminals terminals;
-	@Before public void setUp() throws CardException {
+	@Before public void setUp() throws Exception {
 		if (true) {
-			context = Smartcardio.JnaTerminalFactorySpi.establishContext();
-			terminals = context.engineTerminals();
+			Security.addProvider(new Smartcardio());
+			context = TerminalFactory.getInstance("PC/SC", null, Smartcardio.PROVIDER_NAME);
+			terminals = context.terminals();
 		} else {
 			TerminalFactory terminalFactory = TerminalFactory.getDefault();
 			terminals = terminalFactory.terminals();
 		}
 	}
 	@After public void tearDown() throws CardException {
-		if (context != null)
-			context.close();
+		context = null;
+		System.gc(); // not entirely sure if this will immediately dispose() the TerminalFactory
 	}
 	@Test
 	public void testList() throws CardException {

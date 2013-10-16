@@ -7,12 +7,15 @@ import io.github.yonran.jna2pcsc.Winscard.SCardReaderState;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import javax.smartcardio.ATR;
 import javax.smartcardio.Card;
@@ -29,9 +32,19 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.ptr.IntByReference;
 
 
-public class Smartcardio {
+public class Smartcardio extends Provider {
+	
+	private static final long serialVersionUID = 1L;
+	
 	static final int MAX_ATR_SIZE = 33;
 
+	public static final String PROVIDER_NAME = "JNA2PCSC";
+	
+	public Smartcardio() {
+		super(PROVIDER_NAME, 0.0d, "JNA-to-PCSC Provider");
+		put("TerminalFactory.PC/SC", "io.github.yonran.jna2pcsc.Smartcardio$JnaTerminalFactorySpi");
+	}
+	
 	public static class JnaTerminalFactorySpi extends TerminalFactorySpi {
 		public static final int SCARD_SCOPE_USER = 0;
 		public static final int SCARD_SCOPE_TERMINAL = 1;
@@ -39,6 +52,18 @@ public class Smartcardio {
 		private final Winscard.WinscardLibInfo libInfo;
 		private final Winscard.SCardContext scardContext;
 		private boolean isClosed;
+		
+		public JnaTerminalFactorySpi(Object parameter) {
+			this.libInfo = Winscard.openLib();
+			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
+			try {
+				check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
+			} catch (JnaPCSCException e) {
+				throw new IllegalStateException(e);
+			}
+			this.scardContext = phContext.getValue();
+		}
+		
 		public JnaTerminalFactorySpi(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
@@ -84,6 +109,7 @@ public class Smartcardio {
 	public static class JnaCardTerminals extends CardTerminals {
 		private final Winscard.SCardContext scardContext;
 		private final Winscard.WinscardLibInfo libInfo;
+
 		/** The readers that waitForChange observed in its last invocation. */
 		private final List<SCardReaderState> knownReaders;
 		/**
@@ -856,13 +882,17 @@ public class Smartcardio {
 	public static final int SCARD_E_NO_READERS_AVAILABLE = 0x8010002E;
 	public static final int SCARD_E_READER_UNAVAILABLE = 0x80100017;
 	public static final int SCARD_E_NO_SMARTCARD = 0x8010000C;
-
+	private static final int TIMEOUT_INFINITE = 0xffffffff;
+	
 	/**
 	 * Named affectionately after the function I've seen in crash logs so often
 	 * from libj2pcsc on OS X java7.
 	 * @param  
 	 */
 	public static List<String> pcsc_multi2jstring(byte[] multiString, Charset charset) {
+		if (multiString == null) {
+			throw new IllegalArgumentException("multiString can not be null");
+		}
 		List<String> r = new ArrayList<String>();
 		int from = 0, to = 0;
 		for (; to < multiString.length; to++) {
