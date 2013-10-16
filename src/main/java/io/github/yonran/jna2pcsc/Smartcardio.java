@@ -3,6 +3,8 @@
  * copyright and related or neighboring rights to work.
  */
 package io.github.yonran.jna2pcsc;
+import io.github.yonran.jna2pcsc.Winscard.SCardReaderState;
+
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.security.Provider;
@@ -10,6 +12,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Hashtable;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -64,6 +68,30 @@ public class Smartcardio extends Provider {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
 		}
+		
+		/**
+		 * Likely exceptions
+		 * <ul>
+		 * <li>JnaPCSCException(
+		 * {@link WinscardConstants#SCARD_E_NO_READERS_AVAILABLE}) the Daemon is
+		 * not running (Windows 8, Linux). On Windows 8, the daemon is shut down
+		 * when there are no readers plugged in. New PCSC versions (at least
+		 * 1.7) also allow no new connections when there are no readers plugged
+		 * in.
+		 * <li>JnaPCSCException({@link WinscardConstants#SCARD_E_NO_SERVICE})
+		 * the Daemon is not running (OS X). On OS X (pcscd 1.4), the daemon is
+		 * shut down when there are no readers plugged in, and the library gives
+		 * this error. Can also happen on Windows when you don't have
+		 * permission.
+		 * </ul>
+		 */
+		public static JnaTerminalFactorySpi establishContext() throws CardException {
+			Winscard.WinscardLibInfo libInfo = Winscard.openLib();
+			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
+			check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
+			Winscard.SCardContext scardContext = phContext.getValue();
+			return new JnaTerminalFactorySpi(libInfo, scardContext);
+		}
 		@Override public CardTerminals engineTerminals() {
 			return new JnaCardTerminals(libInfo, scardContext);
 		}
@@ -81,95 +109,248 @@ public class Smartcardio extends Provider {
 	public static class JnaCardTerminals extends CardTerminals {
 		private final Winscard.SCardContext scardContext;
 		private final Winscard.WinscardLibInfo libInfo;
-	    // terminal state used by waitForCard()
-	    private final Map<String, Integer> stateMap;
-		
-		
+
+		/** The readers that waitForChange observed in its last invocation. */
+		private final List<SCardReaderState> knownReaders;
+		/**
+		 * Readers that previously existed. Stored until the next
+		 * {@link #waitForChange(long)} call.
+		 */
+		private final List<SCardReaderState> zombieReaders;
+		private boolean knownReadersChanged;
+		/**
+		 * Whether to use the PNP device to etect when new readers are plugged
+		 * in. Unfortunately, this is now almost useless, because the smartcard
+		 * service exits and gives errors when there are no readers.
+		 */
+		private final boolean usePnp = true;
 		public JnaCardTerminals(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
-			this.stateMap = new Hashtable<String, Integer>();
+			this.knownReaders = new ArrayList<SCardReaderState>();
+			this.zombieReaders = new ArrayList<SCardReaderState>();
+			if (usePnp) {
+				SCardReaderState pnpReaderState = libInfo.createSCardReaderState();
+				pnpReaderState.setReaderName(WinscardConstants.PNP_READER_ID);
+				knownReaders.add(pnpReaderState);
+			}
 		}
 		@Override public List<CardTerminal> list(State state) throws CardException {
+			if (null == state)
+				throw new NullPointerException("State must be non-null. To get all terminals, just call zero-arg list().");
+			if (state == State.CARD_REMOVAL || state == State.CARD_INSERTION) {
+				List<CardTerminal> r = new ArrayList<CardTerminal>();
+				for (int i = 0; i < knownReaders.size(); i++) {
+					SCardReaderState readerState = knownReaders.get(i);
+					if (usePnp && i == 0)
+						continue;
+					boolean wasPresent = 0 != (readerState.getCurrentState() & WinscardConstants.SCARD_STATE_PRESENT);
+					boolean isPresent = 0 != (readerState.getEventState() & WinscardConstants.SCARD_STATE_PRESENT);
+					int oldCounter = (readerState.getCurrentState() >> 16) & 0xffff;
+					int newCounter = (readerState.getEventState() >> 16) & 0xffff;
+					boolean cardInserted = ! wasPresent && isPresent ||
+							oldCounter < newCounter;
+					boolean cardRemoved = wasPresent && !isPresent ||
+						! isPresent && oldCounter < newCounter ||
+						oldCounter + 1 < newCounter;
+					boolean shouldAdd = state == State.CARD_INSERTION && cardInserted ||
+							state == State.CARD_REMOVAL && cardRemoved;
+					if (shouldAdd)
+						r.add(new JnaCardTerminal(libInfo, scardContext, readerState.getReaderName()));
+				}
+				if (state == State.CARD_REMOVAL) {
+					for (int i = 0; i < zombieReaders.size(); i++) {
+						SCardReaderState readerState = zombieReaders.get(i);
+						boolean wasPresent = 0 != (readerState.getCurrentState() & WinscardConstants.SCARD_STATE_PRESENT);
+						if (wasPresent)
+							r.add(new JnaCardTerminal(libInfo, scardContext, readerState.getReaderName()));
+					}
+				}
+				return r;
+			}
+
+			List<String> readerNames = listReaderNames();
+			if (readerNames.isEmpty())
+				return Collections.emptyList();
+			List<String> filteredReaderNames;
+			if (state == State.ALL) {
+				filteredReaderNames = readerNames;
+			} else {
+				SCardReaderState[] readers = libInfo.createSCardReaderStateArray(readerNames.size());
+				libInfo.createSCardReaderState().toArray(readers);
+				for (int i = 0; i < readers.length; i++) {
+					readers[i].setReaderName(readerNames.get(i));
+				}
+				check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, 0, readers, readers.length));
+				filteredReaderNames = new ArrayList<String>();
+				boolean wantPresent = state == State.CARD_PRESENT;
+				for (int i = 0; i < readers.length; i++) {
+					boolean isPresent = 0 != (WinscardConstants.SCARD_STATE_PRESENT & readers[i].getEventState());
+					if (wantPresent == isPresent)
+						filteredReaderNames.add(readers[i].getReaderName());
+				}
+			}
+			CardTerminal[] cardTerminals = new CardTerminal[filteredReaderNames.size()];
+			for (int i = 0; i < filteredReaderNames.size(); i++) {
+				String name = filteredReaderNames.get(i);
+				cardTerminals[i] = new JnaCardTerminal(libInfo, scardContext, name);
+			}
+			return Collections.unmodifiableList(Arrays.asList(cardTerminals));
+		}
+
+		/** Simple wrapper around SCardListReaders. */
+		private List<String> listReaderNames() throws JnaPCSCException {
 			IntByReference pcchReaders = new IntByReference();
-			long err = libInfo.lib.SCardListReaders(scardContext, null, null, pcchReaders).longValue();
 			byte[] mszReaders = null;
-			if (err == 0) {
+			long err;
+			while (true) {
+				err = libInfo.lib.SCardListReaders(scardContext, null, null, pcchReaders).longValue();
+				if (err != 0)
+					break;
 				mszReaders = new byte[pcchReaders.getValue()];
 				err = libInfo.lib.SCardListReaders(scardContext, null, ByteBuffer.wrap(mszReaders), pcchReaders).longValue();
+				if ((int)err != WinscardConstants.SCARD_E_INSUFFICIENT_BUFFER)
+					break;
 			}
 			switch ((int)err) {
 			case SCARD_S_SUCCESS:
 				List<String> readerNames = pcsc_multi2jstring(mszReaders);
-				CardTerminal[] cardTerminals = new CardTerminal[readerNames.size()];
-				for (int i = 0; i < readerNames.size(); i++) {
-					String name = readerNames.get(i);
-					cardTerminals[i] = new JnaCardTerminal(libInfo, scardContext, name);
-				}
-				return Collections.unmodifiableList(Arrays.asList(cardTerminals));
+				return readerNames;
 			case SCARD_E_NO_READERS_AVAILABLE:
 			case SCARD_E_READER_UNAVAILABLE:
 				return Collections.emptyList();
-			}
-			throw new JnaPCSCException(err, "SCardListReaders");
-		}
-	
-		// heavily inspired by OpenJDK sun.security.smartcardio.PCSCTerminals
-		@Override public boolean waitForChange(long timeoutMs) throws CardException {
-
-			if (timeoutMs == 0) {
-				timeoutMs = TIMEOUT_INFINITE;
-			}
-			
-			// list the readers and their states
-			IntByReference pcchReaders = new IntByReference();
-			long err = libInfo.lib.SCardListReaders(scardContext, null, null, pcchReaders).longValue();
-			byte[] mszReaders = null;
-			if (err == SCARD_S_SUCCESS) {
-				mszReaders = new byte[pcchReaders.getValue()];
-				err = libInfo.lib.SCardListReaders(scardContext, null, ByteBuffer.wrap(mszReaders), pcchReaders).longValue();
-			}
-
-			switch ((int)err) {
-			case SCARD_S_SUCCESS:
-				break;
-			case SCARD_E_NO_READERS_AVAILABLE:
-			case SCARD_E_READER_UNAVAILABLE:
-				throw new IllegalStateException("No terminals available"); // emulate OpenJDK PSCSTerminals behavior
-			}
-
-			// populate the reader states
-			List<String> readerNames = pcsc_multi2jstring(mszReaders);
-			if (readerNames.size() == 0) {
-				throw new IllegalStateException("No terminals available"); // emulate OpenJDK PSCSTerminals behavior
-			}
-			
-			// get reader states for available readers, honoring previous states
-			Winscard.SCardReaderState[] readerStates = (Winscard.SCardReaderState[])new Winscard.SCardReaderState().toArray(readerNames.size());
-			for (int i = 0; i < readerNames.size(); i++) {
-				final String readerName = readerNames.get(i);
-				Integer readerState = stateMap.get(readerName);
-				if (readerState == null) {
-					readerState = Integer.valueOf(0); // SCARD_STATE_UNAWARE
-					stateMap.put(readerName, readerState);
-				}
-				readerStates[i].szReader = readerName;
-				readerStates[i].dwCurrentState = readerState.intValue();
-			}
-
-			err = libInfo.lib.SCardGetStatusChange(scardContext, (int)timeoutMs, readerStates, readerStates.length).longValue();
-			switch ((int)err) {
-			case SCARD_S_SUCCESS:
-				// update states
-				stateMap.clear();
-				for (Winscard.SCardReaderState freshState : readerStates) {
-					stateMap.put(freshState.szReader, Integer.valueOf(freshState.dwEventState));
-				}
-				break;
 			default:
-				throw new IllegalStateException("No terminals available"); // emulate OpenJDK PSCSTerminals behavior
+				check("SCardListReaders", err);
+				throw new IllegalStateException();
 			}
-			
+		}
+		
+		/**
+		 * Helper function for {@link #waitForChange(long)}. Lists the readers
+		 * and updates 3 variables:
+		 * <ul>
+		 * <li>Any new readers are appended to {@link #knownReaders}.
+		 * <li>Any old readers are moved from {@link #knownReaders} to
+		 * {@link #zombieReaders}.
+		 * <li>If any change is made, {@link #knownReadersChanged} is set so
+		 * that the JNA array-of-struct can be reallocated.
+		 * </ul>
+		 * 
+		 * @return true if a reader was added or removed.
+		 */
+		private boolean updateKnownReaders() throws JnaPCSCException {
+			boolean isReaderAddedOrRemoved = false;
+			List<String> currentReaderNames = listReaderNames();
+			HashSet<String> existingReaderNames = new HashSet<String>(knownReaders.size() - (usePnp?1:0));
+			Iterator<SCardReaderState> it = knownReaders.iterator();
+			if (usePnp) it.next();
+			while (it.hasNext()) {
+				SCardReaderState reader = it.next();
+				existingReaderNames.add(reader.getReaderName());
+				if (currentReaderNames.contains(reader.getReaderName()))
+					continue;
+				it.remove();
+				reader.setEventState(0);
+				zombieReaders.add(reader);
+				isReaderAddedOrRemoved = true;
+			}
+			List<String> newReadersNames = new ArrayList<String>();
+			for (String readerName: currentReaderNames) {
+				if (existingReaderNames.contains(readerName))
+					continue;
+				newReadersNames.add(readerName);
+			}
+			if (! newReadersNames.isEmpty()) {
+				SCardReaderState[] newReaders = libInfo.createSCardReaderStateArray(newReadersNames.size());
+				libInfo.createSCardReaderState().toArray(newReaders);
+				for (int i = 0; i < newReaders.length; i++)
+					newReaders[i].setReaderName(newReadersNames.get(i));
+				check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, 0, newReaders, newReaders.length));
+				knownReaders.addAll(Arrays.asList(newReaders));
+				isReaderAddedOrRemoved = true;
+			}
+			if (isReaderAddedOrRemoved)
+				knownReadersChanged = true;
+			return isReaderAddedOrRemoved;
+		}
+
+		/**
+		 * Block until any card is inserted or removed, or until the timeout.
+		 * 
+		 * <p>
+		 * Deviation from the Sun version: the first
+		 * {@link #waitForChange(long)} call always returns immediately. In
+		 * Sun's version, if the card is inserted between your {@link #list()}
+		 * call and the first {@link #waitForChange(long)} call, then your
+		 * application can wait forever.
+		 * 
+		 * <p>
+		 * Note: this method returns early when any smartcard state has changed
+		 * (e.g. smartcard becomes in-use or idle). The caller cannot observe
+		 * these changes though. So the caller should be able to handle changes
+		 * that appear spurious.
+		 * 
+		 * <p>
+		 * Likely exceptions
+		 * <ul>
+		 * <li>JnaPCSCException(
+		 * {@link WinscardConstants#SCARD_E_SERVICE_STOPPED}) On Windows 8+, the
+		 * service shuts down immediately when the last reader is unplugged.
+		 * Then, you have to start polling because there is no daemon to
+		 * subscribe to.
+		 * </ul>
+		 */
+		@Override public boolean waitForChange(long timeoutMs) throws CardException {
+			if (timeoutMs < 0)
+				throw new IllegalArgumentException("Negative timeout " + timeoutMs);
+			else if (timeoutMs == 0)
+				timeoutMs = WinscardConstants.INFINITE;
+
+			zombieReaders.clear();
+			if (!usePnp)
+				if (updateKnownReaders())
+					return true;  // # of readers changed; return early.
+
+			if (knownReadersChanged) {
+				knownReadersChanged = false;
+				// allocate a contiguous array of struct, and copy
+				SCardReaderState[] arr = libInfo.createSCardReaderStateArray(knownReaders.size());
+				//knownReaders.get(0).toArray(knownReaders.toArray(arr));
+				libInfo.createSCardReaderState().toArray(arr);
+				for (int i = 0; i < knownReaders.size(); i++) {
+					SCardReaderState oldReader = knownReaders.get(i);
+					SCardReaderState newReader = arr[i];
+					newReader.setReaderName(oldReader.getReaderName());
+					newReader.setCurrentState(oldReader.getCurrentState());
+					newReader.setEventState(oldReader.getEventState());
+					newReader.setAtrLength(oldReader.getAtrLength());
+					System.arraycopy(oldReader.getAtrArray(), 0, newReader.getAtrArray(), 0, oldReader.getAtrLength());
+					knownReaders.set(i, newReader);
+				}
+			}
+			for (SCardReaderState reader: knownReaders) {
+				reader.setCurrentState(reader.getEventState());
+				reader.setEventState(0);
+			}
+			SCardReaderState[] readers;
+			if (knownReaders.isEmpty()) {
+				// create array containing null, to avoid JNA exception:
+				// Structure array must have non-zero length
+				readers = libInfo.createSCardReaderStateArray(1);
+			} else {
+				readers = knownReaders.toArray(libInfo.createSCardReaderStateArray(knownReaders.size()));
+			}
+			//timeoutMs = 2000;
+			NativeLong statusError = libInfo.lib.SCardGetStatusChange(scardContext, (int)timeoutMs, readers, readers.length);
+			if (WinscardConstants.SCARD_E_TIMEOUT == (int)statusError.longValue())
+				return false;
+			else check("SCardGetStatusChange", statusError);
+
+			if (usePnp) {
+				boolean pnpChange = 0 != (knownReaders.get(0).getEventState() & WinscardConstants.SCARD_STATE_CHANGED);
+				if (pnpChange)
+					updateKnownReaders();
+			}
 			return true;
 		}
 	}
@@ -242,10 +423,12 @@ public class Smartcardio extends Provider {
 			int dwPreferredProtocols = SCARD_PROTOCOL_ANY;
 			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
 			IntByReference pdwActiveProtocol = new IntByReference();
-			Winscard.SCardReaderState[] rgReaderStates = new Winscard.SCardReaderState[]{new Winscard.SCardReaderState(name)};
+			SCardReaderState[] rgReaderStates = libInfo.createSCardReaderStateArray(1);
+			rgReaderStates[0] = libInfo.createSCardReaderState();
+			rgReaderStates[0].setReaderName(name);
 			// TODO: on Windows, just call SCardLocateCards
 			long err = libInfo.lib.SCardConnect(scardContext, name, SCARD_SHARE_DIRECT, dwPreferredProtocols, phCard, pdwActiveProtocol).longValue();
-			if (err == SCARD_E_NO_SMARTCARD)
+			if ((int)err == SCARD_E_NO_SMARTCARD)
 				return false;
 			else check("SCardConnect", err);
 			Winscard.SCardHandle scardHandle = phCard.getValue();
@@ -262,14 +445,37 @@ public class Smartcardio extends Provider {
 				libInfo.lib.SCardDisconnect(scardHandle, JnaCard.SCARD_LEAVE_CARD);
 			}
 		}
+		private boolean waitHelper(long timeoutMs, boolean cardPresent) throws JnaPCSCException {
+			if (timeoutMs < 0)
+				throw new IllegalArgumentException("Negative timeout " + timeoutMs);
+			if (timeoutMs == 0)
+				timeoutMs = WinscardConstants.INFINITE;
+			SCardReaderState[] rgReaderStates = libInfo.createSCardReaderStateArray(1);
+			SCardReaderState readerState = rgReaderStates[0] = libInfo.createSCardReaderState();
+			rgReaderStates[0].setReaderName(name);
+			int remainingTimeout = (int) timeoutMs;
+			while (cardPresent != (0 != (readerState.getEventState() & WinscardConstants.SCARD_STATE_PRESENT))) {
+				long startTime = System.currentTimeMillis();
+				long err = libInfo.lib.SCardGetStatusChange(scardContext, remainingTimeout, rgReaderStates, rgReaderStates.length).longValue();
+				long endTime = System.currentTimeMillis();
+				if (WinscardConstants.SCARD_E_TIMEOUT == (int)err)
+					return false;
+				check("SCardGetStatusChange", err);
+				readerState.setCurrentState(readerState.getEventState());
+				readerState.setEventState(0);
+				if (remainingTimeout != WinscardConstants.INFINITE) {
+					if (remainingTimeout < endTime - startTime)
+						return false;
+					remainingTimeout -= endTime - startTime;
+				}
+			}
+			return true;
+		}
 		@Override public boolean waitForCardAbsent(long timeoutMs) throws CardException {
-			return false;
+			return waitHelper(timeoutMs, false);
 		}
 		@Override public boolean waitForCardPresent(long timeoutMs) throws CardException {
-			Winscard.SCardReaderState[] rgReaderStates = new Winscard.SCardReaderState[]{new Winscard.SCardReaderState("\\\\?PnP?\\Notification")};
-			long err = libInfo.lib.SCardGetStatusChange(scardContext, 0, rgReaderStates, rgReaderStates.length).longValue();
-			
-			return false;
+			return waitHelper(timeoutMs, true);
 		}
 	}
 
