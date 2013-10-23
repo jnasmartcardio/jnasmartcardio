@@ -48,4 +48,10 @@
 			<comments>Public domain, or as close to it as legally possible.</comments>
 		</license>
 	</licenses>
+	<scm>
+		<connection>scm:git:git://jnasmartcardio/jnasmartcardio.git</connection>
+		<developerConnection>scm:git:git@github.com:jnasmartcardio/jnasmartcardio.git</developerConnection>
+		<url>https://github.com/jnasmartcardio/jnasmartcardio</url>
+		<tag>HEAD</tag>
+	</scm>
 </project>
