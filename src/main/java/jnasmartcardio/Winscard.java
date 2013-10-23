@@ -6,10 +6,15 @@ package jnasmartcardio;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import com.sun.jna.FunctionMapper;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLibrary;
@@ -428,7 +433,18 @@ class Winscard {
 		String libraryName = Platform.isWindows() ? WINDOWS_PATH : Platform.isMac() ? MAC_PATH : PCSC_PATH;
 		WinscardLibrary lib;
 		if (Platform.isWindows() || Platform.isMac()) {
-			lib = (WinscardLibrary) Native.loadLibrary(libraryName, WinscardLibrary.class);
+			HashMap<Object, Object> options = new HashMap<Object, Object>();
+			final Set<String> asciiSuffixNames = new HashSet<String>();
+			asciiSuffixNames.addAll(Arrays.asList("SCardListReaderGroups", "SCardListReaders", "SCardGetStatusChange", "SCardConnect", "SCardStatus"));
+			options.put(Library.OPTION_FUNCTION_MAPPER, new FunctionMapper() {
+				@Override public String getFunctionName(NativeLibrary library, Method method) {
+					String name = method.getName();
+					if (asciiSuffixNames.contains(name))
+						name = name + 'A';
+					return name;
+				}
+			});
+			lib = (WinscardLibrary) Native.loadLibrary(libraryName, WinscardLibrary.class, options);
 		} else {
 			PcscLiteLibrary linuxPcscLib = (PcscLiteLibrary) Native.loadLibrary(libraryName, PcscLiteLibrary.class);
 			lib = new PcscLiteAdapter(linuxPcscLib);
