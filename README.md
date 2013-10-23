@@ -1,6 +1,6 @@
-jna2pcsc
+jnasmartcardio
 ===
-A re-implementation of the [`javax.smartcardio` API](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/). It allows you to communicate to a smart card (at the APDU level) from within Java.
+(Previously known as jna2pcsc.) A re-implementation of the [`javax.smartcardio` API](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/). It allows you to communicate to a smart card (at the APDU level) from within Java.
 
 In case you aren’t familiar with the technology, a smart card is a tiny CPU that fits inside a piece of plastic the size of a credit card. For example, you can buy the MyEID for about $15 to securely store and create signatures from a 2048-bit RSA private key. In order to use a smart card, you also have to buy a $15 USB smart card reader. Once you plug in the smart card reader, you use the winscard library built-in to Windows or the pcsclite library on OS X and Linux to communicate with the card. This library is an adapter that converts the native winscard API to the friendly `javax.smartcardio` interfaces.
 
@@ -20,7 +20,7 @@ This is a Java project that only depends on JNA. We currently use Maven to downl
 
 There are 3 ways to use this smartcard provider instead of the one that is bundled with JRE:
 
-1. Modify &lt;java_home&gt;/jre/lib/security/java.security; replace `security.provider.9=sun.security.smartcardio.SunPCSC` with `security.provider.9=io.github.yonran.jna2pcsc.Smartcardio`. Then use `TerminalFactory.getDefault()`.
+1. Modify &lt;java_home&gt;/jre/lib/security/java.security; replace `security.provider.9=sun.security.smartcardio.SunPCSC` with `security.provider.9=jnasmartcardio.Smartcardio`. Then use `TerminalFactory.getDefault()`.
 2. Create a file override.java.security, then add system property -Djava.security.properties=override.java.security. This should be a file that contains a line like the above. But make sure that you override the same numbered line as the existing SunPCSC in your JRE; otherwise, you may disable some other factory too! Then use `TerminalFactory.getDefault()`
 3. Explicitly call `Security.addProvider(new Smartcardio());`. Then call `TerminalFactory.getInstance("PC/SC", null, Smartcardio.PROVIDER_NAME);`
 
@@ -28,7 +28,7 @@ Once you have a TerminalFactory, you call `cardTerminals = factory.terminals(); 
 
 Caveats
 ---
-This library is not ready for use in production. It’s incomplete; a few methods might still be no-ops. I have only tested it a very small amount.
+This library is not ready for use in production. It’s incomplete; a few methods might still be no-ops. I have only tested it a very small amount. It does not work on Windows yet.
 
 This library requires JNA to talk to the native libraries (winscard.dll, libpcsc.so, or PCSC). You can’t use this library if you are writing an applet or are otherwise using a security manager.
 

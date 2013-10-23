@@ -2,8 +2,7 @@
  * To the extent possible under law, contributors have waived all
  * copyright and related or neighboring rights to work.
  */
-package io.github.yonran.jna2pcsc;
-import io.github.yonran.jna2pcsc.Winscard.SCardReaderState;
+package jnasmartcardio;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -26,6 +25,8 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactorySpi;
 
+import jnasmartcardio.Winscard.SCardReaderState;
+
 import com.sun.jna.NativeLong;
 import com.sun.jna.ptr.IntByReference;
 
@@ -40,7 +41,7 @@ public class Smartcardio extends Provider {
 	
 	public Smartcardio() {
 		super(PROVIDER_NAME, 0.0d, "JNA-to-PCSC Provider");
-		put("TerminalFactory.PC/SC", "io.github.yonran.jna2pcsc.Smartcardio$JnaTerminalFactorySpi");
+		put("TerminalFactory.PC/SC", JnaTerminalFactorySpi.class.getName());
 	}
 	
 	public static class JnaTerminalFactorySpi extends TerminalFactorySpi {

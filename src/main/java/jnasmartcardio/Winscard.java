@@ -2,7 +2,7 @@
  * To the extent possible under law, contributors have waived all
  * copyright and related or neighboring rights to work.
  */
-package io.github.yonran.jna2pcsc;
+package jnasmartcardio;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;

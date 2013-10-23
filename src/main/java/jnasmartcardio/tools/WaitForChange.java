@@ -1,5 +1,4 @@
-package io.github.yonran.jna2pcsc.tools;
-import io.github.yonran.jna2pcsc.Smartcardio;
+package jnasmartcardio.tools;
 
 import java.security.Security;
 import java.util.ArrayList;
@@ -9,6 +8,8 @@ import javax.smartcardio.CardTerminal;
 import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CardTerminals.State;
 import javax.smartcardio.TerminalFactory;
+
+import jnasmartcardio.Smartcardio;
 
 /**
  * Simple utility to demonstrate {@link CardTerminals#waitForChange()} and

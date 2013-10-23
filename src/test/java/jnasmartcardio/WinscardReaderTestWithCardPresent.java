@@ -2,10 +2,9 @@
  * To the extent possible under law, contributors have waived all
  * copyright and related or neighboring rights to work.
  */
-package io.github.yonran.jna2pcsc;
+package jnasmartcardio;
 import static org.junit.Assert.*;
 
-import io.github.yonran.jna2pcsc.Smartcardio;
 
 import java.security.Security;
 import java.util.List;
@@ -19,6 +18,8 @@ import javax.smartcardio.CardTerminals;
 import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactory;
+
+import jnasmartcardio.Smartcardio;
 
 import org.junit.After;
 import org.junit.Before;
