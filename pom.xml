@@ -1,5 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>io.github.jnasmartcardio</groupId>
@@ -8,7 +7,8 @@
 	<packaging>jar</packaging>
 
 	<name>jnasmartcardio</name>
-	<url>http://maven.apache.org</url>
+	<description>A re-implementation of the javax.smartcardio API. It allows you to communicate to a smart card (at the APDU level) from within Java.</description>
+	<url>https://github.com/jnasmartcardio/jnasmartcardio</url>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -40,6 +40,18 @@
 			</plugin>
 		</plugins>
 	</build>
+	<distributionManagement>
+		<snapshotRepository>
+			<id>sonatype-nexus-snapshots</id>
+			<name>Sonatype Nexus snapshot repository</name>
+			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+		</snapshotRepository>
+		<repository>
+			<id>sonatype-nexus-staging</id>
+			<name>Sonatype Nexus release repository</name>
+			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
+		</repository>
+	</distributionManagement>
 	<licenses>
 		<license>
 			<name>CC0</name>
@@ -54,4 +66,18 @@
 		<url>https://github.com/jnasmartcardio/jnasmartcardio</url>
 		<tag>HEAD</tag>
 	</scm>
+	<developers>
+		<developer>
+			<id>yonran</id>
+			<name>Yonathan Randolph</name>
+			<email>yonathan@gmail.com</email>
+			<url>https://github.com/yonran</url>
+			<organization>jnasmartcardio</organization>
+			<organizationUrl>https://github.com/jnasmartcardio</organizationUrl>
+			<roles>
+				<role>developer</role>
+			</roles>
+			<timezone>America/Los_Angeles</timezone>
+		</developer>
+	</developers>
 </project>
