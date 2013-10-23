@@ -195,12 +195,14 @@ public class Smartcardio extends Provider {
 			IntByReference pcchReaders = new IntByReference();
 			byte[] mszReaders = null;
 			long err;
+			ByteBuffer mszReaderGroups = ByteBuffer.allocate("SCard$AllReaders".length() + 2);
+			mszReaderGroups.put("SCard$AllReaders".getBytes(Charset.forName("ascii")));
 			while (true) {
-				err = libInfo.lib.SCardListReaders(scardContext, null, null, pcchReaders).longValue();
+				err = libInfo.lib.SCardListReaders(scardContext, mszReaderGroups, null, pcchReaders).longValue();
 				if (err != 0)
 					break;
 				mszReaders = new byte[pcchReaders.getValue()];
-				err = libInfo.lib.SCardListReaders(scardContext, null, ByteBuffer.wrap(mszReaders), pcchReaders).longValue();
+				err = libInfo.lib.SCardListReaders(scardContext, mszReaderGroups, ByteBuffer.wrap(mszReaders), pcchReaders).longValue();
 				if ((int)err != WinscardConstants.SCARD_E_INSUFFICIENT_BUFFER)
 					break;
 			}
@@ -340,6 +342,12 @@ public class Smartcardio extends Provider {
 			if (WinscardConstants.SCARD_E_TIMEOUT == (int)statusError.longValue())
 				return false;
 			else check("SCardGetStatusChange", statusError);
+			for (SCardReaderState reader: readers) {
+				String name = reader.getReaderName();
+				int currentState = reader.getCurrentState();
+				int eventState = reader.getEventState();
+				System.out.format("%x -> %x %s%n", currentState, eventState,name);
+			}
 
 			if (usePnp) {
 				boolean pnpChange = 0 != (knownReaders.get(0).getEventState() & WinscardConstants.SCARD_STATE_CHANGED);

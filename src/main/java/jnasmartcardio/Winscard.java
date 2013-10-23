@@ -15,10 +15,12 @@ import java.util.List;
 import java.util.Set;
 
 import com.sun.jna.FunctionMapper;
+import com.sun.jna.IntegerType;
 import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.NativeLibrary;
 import com.sun.jna.NativeLong;
+import com.sun.jna.NativeMappedConverter;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
 import com.sun.jna.PointerType;
@@ -35,23 +37,29 @@ class Winscard {
 			return Arrays.asList("scope");
 		}
 	}
+	public static int DWORD_SIZE = Platform.isWindows() || Platform.isMac() ? 4 : NativeLong.SIZE;
 	// typedef LONG SCARDCONTEXT;
-	public static class SCardContext extends Structure implements Structure.ByValue {
-		public NativeLong context;
-		public SCardContext(NativeLong nativeLong) {
-			this.context = nativeLong;
-		}
-		@Override protected List<String> getFieldOrder() {
-			return Arrays.asList("context");
+	public static class SCardContext extends IntegerType {
+		private static final long serialVersionUID = 1L;
+		public static final int SIZE = Platform.isWindows() ? Pointer.SIZE : DWORD_SIZE;
+		/** no-arg constructor needed for {@link NativeMappedConverter#defaultValue()}*/
+		public SCardContext() {this(0l);}
+		public SCardContext(long value) {
+			super(SIZE, value);
 		}
 	}
 	public static class SCardContextByReference extends ByReference {
-		public SCardContextByReference() {super(NativeLong.SIZE);}
+		public SCardContextByReference() {super(SCardContext.SIZE);}
 		public SCardContext getValue() {
-			return new SCardContext(getPointer().getNativeLong(0));
+			long v = SCardContext.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
+			return new SCardContext(v);
 		}
 		public void setValue(SCardContext context) {
-			getPointer().setNativeLong(0, context.context);
+			if (SCardContext.SIZE == 4) {
+				getPointer().setInt(0, context.intValue());
+			} else {
+				getPointer().setLong(0, context.longValue());
+			}
 		}
 	}
 	public static class SCardHandle extends Structure implements Structure.ByValue {
@@ -239,7 +247,7 @@ class Winscard {
 		// LONG 	SCardTransmit (SCARDHANDLE hCard, const SCARD_IO_REQUEST *pioSendPci, LPCBYTE pbSendBuffer, DWORD cbSendLength, SCARD_IO_REQUEST *pioRecvPci, LPBYTE pbRecvBuffer, LPDWORD pcbRecvLength)
 		NativeLong SCardTransmit(SCardHandle hCard, ScardIoRequest pioSendPci, ByteBuffer pbSendBuffer, int cbSendLength, ScardIoRequest pioRecvPci, ByteBuffer pbRecvBuffer, IntByReference pcbRecvLength);
 		// LONG 	SCardListReaders (SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR mszReaders, LPDWORD pcchReaders)
-		NativeLong SCardListReaders(SCardContext hContext, String mszGroups, ByteBuffer mszReaders, IntByReference pcchReaders);
+		NativeLong SCardListReaders(SCardContext hContext, ByteBuffer mszGroups, ByteBuffer mszReaders, IntByReference pcchReaders);
 		// LONG 	SCardFreeMemory (SCARDCONTEXT hContext, LPCVOID pvMem)
 		NativeLong SCardFreeMemory(SCardContext hContext, Pointer pvMem);
 		// LONG 	SCardListReaderGroups (SCARDCONTEXT hContext, LPSTR mszGroups, LPDWORD pcchGroups)
@@ -285,7 +293,7 @@ class Winscard {
 		// LONG 	SCardTransmit (SCARDHANDLE hCard, const SCARD_IO_REQUEST *pioSendPci, LPCBYTE pbSendBuffer, DWORD cbSendLength, SCARD_IO_REQUEST *pioRecvPci, LPBYTE pbRecvBuffer, LPDWORD pcbRecvLength)
 		NativeLong SCardTransmit(SCardHandle hCard, ScardIoRequest pioSendPci, ByteBuffer pbSendBuffer, NativeLong cbSendLength, ScardIoRequest pioRecvPci, ByteBuffer pbRecvBuffer, NativeLongByReference pcbRecvLength);
 		// LONG 	SCardListReaders (SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR mszReaders, LPDWORD pcchReaders)
-		NativeLong SCardListReaders(SCardContext hContext, String mszGroups, ByteBuffer mszReaders, NativeLongByReference pcchReaders);
+		NativeLong SCardListReaders(SCardContext hContext, ByteBuffer mszGroups, ByteBuffer mszReaders, NativeLongByReference pcchReaders);
 		// LONG 	SCardFreeMemory (SCARDCONTEXT hContext, LPCVOID pvMem)
 		NativeLong SCardFreeMemory(SCardContext hContext, Pointer pvMem);
 		// LONG 	SCardListReaderGroups (SCARDCONTEXT hContext, LPSTR mszGroups, LPDWORD pcchGroups)
@@ -375,7 +383,7 @@ class Winscard {
 			pcbRecvLength.setValue(longRecvLength.getValue().intValue());
 			return r;
 		}
-		public NativeLong SCardListReaders(SCardContext hContext, String mszGroups, ByteBuffer mszReaders, IntByReference pcchReaders) {
+		public NativeLong SCardListReaders(SCardContext hContext, ByteBuffer mszGroups, ByteBuffer mszReaders, IntByReference pcchReaders) {
 			NativeLongByReference longNumReaders = new NativeLongByReference(new NativeLong(pcchReaders.getValue()));  // inout
 			NativeLong r = delegate.SCardListReaders(hContext, mszGroups, mszReaders, longNumReaders);
 			pcchReaders.setValue(longNumReaders.getValue().intValue());
