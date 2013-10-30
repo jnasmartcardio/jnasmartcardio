@@ -28,6 +28,7 @@ import javax.smartcardio.TerminalFactorySpi;
 import jnasmartcardio.Winscard.SCardReaderState;
 
 import com.sun.jna.NativeLong;
+import com.sun.jna.Platform;
 import com.sun.jna.ptr.IntByReference;
 
 
@@ -139,7 +140,8 @@ public class Smartcardio extends Provider {
 					int oldCounter = (readerState.getCurrentState() >> 16) & 0xffff;
 					int newCounter = (readerState.getEventState() >> 16) & 0xffff;
 					boolean cardInserted = ! wasPresent && isPresent ||
-							oldCounter < newCounter;
+						isPresent && oldCounter < newCounter ||
+						oldCounter + 1 < newCounter;
 					boolean cardRemoved = wasPresent && !isPresent ||
 						! isPresent && oldCounter < newCounter ||
 						oldCounter + 1 < newCounter;
@@ -297,7 +299,10 @@ public class Smartcardio extends Provider {
 				timeoutMs = WinscardConstants.INFINITE;
 
 			zombieReaders.clear();
-			if (!usePnp)
+			// On Linux pcsclite 1.7.4, the PNP reader does not return
+			// immediately when there is already a reader present that isn't in
+			// the array. Strangely, it works fine in OS X.
+			if (!usePnp || Platform.isLinux())
 				if (updateKnownReaders())
 					return true;  // # of readers changed; return early.
 

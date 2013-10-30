@@ -106,7 +106,8 @@ class Winscard {
 	 * <p>
 	 * sizeof(SCARD_READERSTATE_A):<br>
 	 * windows x86: 4+4+4+4+4+36 = 56<br>
-	 * windows x64: 8+8+4+4+4+36 = 64
+	 * windows x64: 8+8+4+4+4+36 = 64<br>
+	 * structure alignment: not sure (but it doesn't matter)
 	 */
 	public static class WinscardSCardReaderState extends Structure implements SCardReaderState {
 		// const char *szReader;
@@ -140,12 +141,16 @@ class Winscard {
 	
 	/**
 	 * On OS X, the fields of SCardReaderState are the same size as Windows, but
-	 * it is not aligned to word boundaries
-	 * 
+	 * it is not aligned to word boundaries because pcsclite.h contains
+	 * "#pragma pack(1)", and unlike Windows it is not explicitly padded.
+	 *
 	 * <p>
 	 * sizeof(SCARD_READERSTATE_A):<br>
 	 * osx x86: 4+4+4+4+4+33 = 53<br>
-	 * osx x64: 8+8+4+4+4+33 = 61
+	 * osx x64: 8+8+4+4+4+33 = 61<br>
+	 * structure alignment: packed
+	 * 
+	 * @see http://gcc.gnu.org/onlinedocs/gcc/Structure_002dPacking-Pragmas.html
 	 */
 	public static class OSXSCardReaderState extends WinscardSCardReaderState {
 		public OSXSCardReaderState(){super(ALIGN_NONE); assert this.size() == Pointer.SIZE * 2 + 12 + 33;}
@@ -156,13 +161,14 @@ class Winscard {
 	}
 	
 	/**
-	 * On Linux, the fields are long, and SCardReaderState is not aligned to
-	 * word boundaries
+	 * On Linux, SCardReaderState is aligned by default (there is no #pragma
+	 * pack(1)), but the fields are long
 	 * 
 	 * <p>
 	 * sizeof(SCARD_READERSTATE_A):<br>
 	 * linux x86: 4+4+4+4+4+33 = 53<br>
-	 * linux x64: 8+8+8+8+8+36 = 76
+	 * linux x64: 8+8+8+8+8+33 = 73<br>
+	 * structure alignment: default
 	 */
 	public static class LinuxSCardReaderState extends Structure implements SCardReaderState {
 		// const char *szReader;
@@ -176,7 +182,7 @@ class Winscard {
 		// DWORD cbAtr;
 		public NativeLong cbAtr;
 		public byte[] rgbAtr = new byte[WinscardConstants.MAX_ATR_SIZE];
-		public LinuxSCardReaderState(){super(ALIGN_NONE); assert this.size() == Pointer.SIZE * 2 + NativeLong.SIZE * 3 + 33;}
+		public LinuxSCardReaderState(){super(ALIGN_DEFAULT); assert this.size() == Pointer.SIZE * 2 + NativeLong.SIZE * 3 + 33;}
 		public LinuxSCardReaderState(String szReader) {this(); this.szReader = szReader;}
 		@Override protected List<String> getFieldOrder() {
 			return Arrays.asList("szReader", "pvUserData", "dwCurrentState", "dwEventState", "cbAtr", "rgbAtr");
