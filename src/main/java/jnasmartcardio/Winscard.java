@@ -194,7 +194,7 @@ class Winscard {
 	}
 	public static final String WINDOWS_PATH = "WinSCard.dll";
 	public static final String MAC_PATH = "/System/Library/Frameworks/PCSC.framework/PCSC";
-	public static final String PCSC_PATH = "pcsc";
+	public static final String PCSC_PATH = "libpcsclite.so.1";
 
 	/**
 	 * The winscard API, used on Windows. OS X also uses the same declarations;
