@@ -207,11 +207,11 @@ public class Smartcardio extends Provider {
 					break;
 			}
 			switch ((int)err) {
-			case SCARD_S_SUCCESS:
+			case WinscardConstants.SCARD_S_SUCCESS:
 				List<String> readerNames = pcsc_multi2jstring(mszReaders);
 				return readerNames;
-			case SCARD_E_NO_READERS_AVAILABLE:
-			case SCARD_E_READER_UNAVAILABLE:
+			case WinscardConstants.SCARD_E_NO_READERS_AVAILABLE:
+			case WinscardConstants.SCARD_E_READER_UNAVAILABLE:
 				return Collections.emptyList();
 			default:
 				check("SCardListReaders", err);
@@ -397,7 +397,7 @@ public class Smartcardio extends Provider {
 	
 			long err = libInfo.lib.SCardConnect(scardContext, name, SCARD_SHARE_SHARED, dwPreferredProtocols, phCard, pdwActiveProtocol).longValue();
 			switch ((int)err) {
-			case SCARD_S_SUCCESS:
+			case WinscardConstants.SCARD_S_SUCCESS:
 				Winscard.SCardHandle scardHandle = phCard.getValue();
 				IntByReference readerLength = new IntByReference();
 				IntByReference currentState = new IntByReference();
@@ -431,7 +431,7 @@ public class Smartcardio extends Provider {
 			rgReaderStates[0].setReaderName(name);
 			// TODO: on Windows, just call SCardLocateCards
 			long err = libInfo.lib.SCardConnect(scardContext, name, SCARD_SHARE_DIRECT, dwPreferredProtocols, phCard, pdwActiveProtocol).longValue();
-			if ((int)err == SCARD_E_NO_SMARTCARD)
+			if ((int)err == WinscardConstants.SCARD_E_NO_SMARTCARD)
 				return false;
 			else check("SCardConnect", err);
 			Winscard.SCardHandle scardHandle = phCard.getValue();
@@ -880,11 +880,6 @@ public class Smartcardio extends Provider {
 		public JnaCardException(int sw, String message) {this(sw, message, null);}
 		public JnaCardException(int sw, String message, Throwable cause) {super(message, cause); this.sw = sw;}
 	}
-
-	public static final int SCARD_S_SUCCESS = 0x0;
-	public static final int SCARD_E_NO_READERS_AVAILABLE = 0x8010002E;
-	public static final int SCARD_E_READER_UNAVAILABLE = 0x80100017;
-	public static final int SCARD_E_NO_SMARTCARD = 0x8010000C;
 
 	/**
 	 * Named affectionately after the function I've seen in crash logs so often
