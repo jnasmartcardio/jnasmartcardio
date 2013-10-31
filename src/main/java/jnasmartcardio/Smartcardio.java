@@ -25,11 +25,12 @@ import javax.smartcardio.CommandAPDU;
 import javax.smartcardio.ResponseAPDU;
 import javax.smartcardio.TerminalFactorySpi;
 
+import jnasmartcardio.Winscard.Dword;
+import jnasmartcardio.Winscard.DwordByReference;
 import jnasmartcardio.Winscard.SCardReaderState;
 
-import com.sun.jna.NativeLong;
 import com.sun.jna.Platform;
-import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.Structure;
 
 
 public class Smartcardio extends Provider {
@@ -73,7 +74,7 @@ public class Smartcardio extends Provider {
 			this.libInfo = Winscard.openLib();
 			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
 			try {
-				check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(SCARD_SCOPE_SYSTEM, null, null, phContext));
+				check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(new Dword(SCARD_SCOPE_SYSTEM), null, null, phContext));
 			} catch (JnaPCSCException e) {
 				throw new IllegalStateException(e);
 			}
@@ -121,8 +122,8 @@ public class Smartcardio extends Provider {
 			this.knownReaders = new ArrayList<SCardReaderState>();
 			this.zombieReaders = new ArrayList<SCardReaderState>();
 			if (usePnp) {
-				SCardReaderState pnpReaderState = libInfo.createSCardReaderState();
-				pnpReaderState.setReaderName(WinscardConstants.PNP_READER_ID);
+				SCardReaderState pnpReaderState = new Winscard.SCardReaderState();
+				pnpReaderState.szReader = WinscardConstants.PNP_READER_ID;
 				knownReaders.add(pnpReaderState);
 			}
 		}
@@ -135,10 +136,10 @@ public class Smartcardio extends Provider {
 					SCardReaderState readerState = knownReaders.get(i);
 					if (usePnp && i == 0)
 						continue;
-					boolean wasPresent = 0 != (readerState.getCurrentState() & WinscardConstants.SCARD_STATE_PRESENT);
-					boolean isPresent = 0 != (readerState.getEventState() & WinscardConstants.SCARD_STATE_PRESENT);
-					int oldCounter = (readerState.getCurrentState() >> 16) & 0xffff;
-					int newCounter = (readerState.getEventState() >> 16) & 0xffff;
+					boolean wasPresent = 0 != (readerState.dwCurrentState.intValue() & WinscardConstants.SCARD_STATE_PRESENT);
+					boolean isPresent = 0 != (readerState.dwEventState.intValue() & WinscardConstants.SCARD_STATE_PRESENT);
+					int oldCounter = (readerState.dwCurrentState.intValue() >> 16) & 0xffff;
+					int newCounter = (readerState.dwEventState.intValue() >> 16) & 0xffff;
 					boolean cardInserted = ! wasPresent && isPresent ||
 						isPresent && oldCounter < newCounter ||
 						oldCounter + 1 < newCounter;
@@ -148,14 +149,14 @@ public class Smartcardio extends Provider {
 					boolean shouldAdd = state == State.CARD_INSERTION && cardInserted ||
 							state == State.CARD_REMOVAL && cardRemoved;
 					if (shouldAdd)
-						r.add(new JnaCardTerminal(libInfo, scardContext, readerState.getReaderName()));
+						r.add(new JnaCardTerminal(libInfo, scardContext, readerState.szReader));
 				}
 				if (state == State.CARD_REMOVAL) {
 					for (int i = 0; i < zombieReaders.size(); i++) {
 						SCardReaderState readerState = zombieReaders.get(i);
-						boolean wasPresent = 0 != (readerState.getCurrentState() & WinscardConstants.SCARD_STATE_PRESENT);
+						boolean wasPresent = 0 != (readerState.dwCurrentState.intValue() & WinscardConstants.SCARD_STATE_PRESENT);
 						if (wasPresent)
-							r.add(new JnaCardTerminal(libInfo, scardContext, readerState.getReaderName()));
+							r.add(new JnaCardTerminal(libInfo, scardContext, readerState.szReader));
 					}
 				}
 				return r;
@@ -168,18 +169,18 @@ public class Smartcardio extends Provider {
 			if (state == State.ALL) {
 				filteredReaderNames = readerNames;
 			} else {
-				SCardReaderState[] readers = libInfo.createSCardReaderStateArray(readerNames.size());
-				libInfo.createSCardReaderState().toArray(readers);
+				SCardReaderState[] readers = new SCardReaderState[readerNames.size()];
+				new SCardReaderState().toArray((Structure[])readers);
 				for (int i = 0; i < readers.length; i++) {
-					readers[i].setReaderName(readerNames.get(i));
+					readers[i].szReader = readerNames.get(i);
 				}
-				check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, 0, readers, readers.length));
+				check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, new Dword(0), readers, new Dword(readers.length)));
 				filteredReaderNames = new ArrayList<String>();
 				boolean wantPresent = state == State.CARD_PRESENT;
 				for (int i = 0; i < readers.length; i++) {
-					boolean isPresent = 0 != (WinscardConstants.SCARD_STATE_PRESENT & readers[i].getEventState());
+					boolean isPresent = 0 != (WinscardConstants.SCARD_STATE_PRESENT & readers[i].dwEventState.intValue());
 					if (wantPresent == isPresent)
-						filteredReaderNames.add(readers[i].getReaderName());
+						filteredReaderNames.add(readers[i].szReader);
 				}
 			}
 			CardTerminal[] cardTerminals = new CardTerminal[filteredReaderNames.size()];
@@ -192,7 +193,7 @@ public class Smartcardio extends Provider {
 
 		/** Simple wrapper around SCardListReaders. */
 		private List<String> listReaderNames() throws JnaPCSCException {
-			IntByReference pcchReaders = new IntByReference();
+			DwordByReference pcchReaders = new DwordByReference();
 			byte[] mszReaders = null;
 			long err;
 			ByteBuffer mszReaderGroups = ByteBuffer.allocate("SCard$AllReaders".length() + 2);
@@ -201,7 +202,7 @@ public class Smartcardio extends Provider {
 				err = libInfo.lib.SCardListReaders(scardContext, mszReaderGroups, null, pcchReaders).longValue();
 				if (err != 0)
 					break;
-				mszReaders = new byte[pcchReaders.getValue()];
+				mszReaders = new byte[pcchReaders.getValue().intValue()];
 				err = libInfo.lib.SCardListReaders(scardContext, mszReaderGroups, ByteBuffer.wrap(mszReaders), pcchReaders).longValue();
 				if ((int)err != WinscardConstants.SCARD_E_INSUFFICIENT_BUFFER)
 					break;
@@ -240,11 +241,11 @@ public class Smartcardio extends Provider {
 			if (usePnp) it.next();
 			while (it.hasNext()) {
 				SCardReaderState reader = it.next();
-				existingReaderNames.add(reader.getReaderName());
-				if (currentReaderNames.contains(reader.getReaderName()))
+				existingReaderNames.add(reader.szReader);
+				if (currentReaderNames.contains(reader.szReader))
 					continue;
 				it.remove();
-				reader.setEventState(0);
+				reader.dwEventState = new Dword(0);
 				zombieReaders.add(reader);
 				isReaderAddedOrRemoved = true;
 			}
@@ -255,11 +256,11 @@ public class Smartcardio extends Provider {
 				newReadersNames.add(readerName);
 			}
 			if (! newReadersNames.isEmpty()) {
-				SCardReaderState[] newReaders = libInfo.createSCardReaderStateArray(newReadersNames.size());
-				libInfo.createSCardReaderState().toArray(newReaders);
+				SCardReaderState[] newReaders = new SCardReaderState[newReadersNames.size()];
+				new SCardReaderState().toArray((Structure[])newReaders);
 				for (int i = 0; i < newReaders.length; i++)
-					newReaders[i].setReaderName(newReadersNames.get(i));
-				check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, 0, newReaders, newReaders.length));
+					newReaders[i].szReader = newReadersNames.get(i);
+				check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, new Dword(0), newReaders, new Dword(newReaders.length)));
 				knownReaders.addAll(Arrays.asList(newReaders));
 				isReaderAddedOrRemoved = true;
 			}
@@ -311,38 +312,38 @@ public class Smartcardio extends Provider {
 			if (knownReadersChanged) {
 				knownReadersChanged = false;
 				// allocate a contiguous array of struct, and copy
-				SCardReaderState[] arr = libInfo.createSCardReaderStateArray(knownReaders.size());
-				libInfo.createSCardReaderState().toArray(arr);
+				SCardReaderState[] arr = new SCardReaderState[knownReaders.size()];
+				new SCardReaderState().toArray((Structure[])arr);
 				for (int i = 0; i < knownReaders.size(); i++) {
 					SCardReaderState oldReader = knownReaders.get(i);
 					SCardReaderState newReader = arr[i];
-					newReader.setReaderName(oldReader.getReaderName());
-					newReader.setCurrentState(oldReader.getCurrentState());
-					newReader.setEventState(oldReader.getEventState());
-					newReader.setAtrLength(oldReader.getAtrLength());
-					System.arraycopy(oldReader.getAtrArray(), 0, newReader.getAtrArray(), 0, oldReader.getAtrLength());
+					newReader.szReader = oldReader.szReader;
+					newReader.dwCurrentState = oldReader.dwCurrentState;
+					newReader.dwEventState  = oldReader.dwEventState;
+					newReader.cbAtr = oldReader.cbAtr;
+					System.arraycopy(oldReader.rgbAtr, 0, newReader.rgbAtr, 0, oldReader.cbAtr.intValue());
 					knownReaders.set(i, newReader);
 				}
 			}
 			for (SCardReaderState reader: knownReaders) {
-				reader.setCurrentState(reader.getEventState());
-				reader.setEventState(0);
+				reader.dwCurrentState = reader.dwEventState;
+				reader.dwEventState = new Dword(0);
 			}
 			SCardReaderState[] readers;
 			if (knownReaders.isEmpty()) {
 				// create array containing null, to avoid JNA exception:
 				// Structure array must have non-zero length
-				readers = libInfo.createSCardReaderStateArray(1);
+				readers = new SCardReaderState[1];
 			} else {
-				readers = knownReaders.toArray(libInfo.createSCardReaderStateArray(knownReaders.size()));
+				readers = knownReaders.toArray(new SCardReaderState[knownReaders.size()]);
 			}
-			NativeLong statusError = libInfo.lib.SCardGetStatusChange(scardContext, (int)timeoutMs, readers, readers.length);
-			if (WinscardConstants.SCARD_E_TIMEOUT == (int)statusError.longValue())
+			Dword statusError = libInfo.lib.SCardGetStatusChange(scardContext, new Dword(timeoutMs), readers, new Dword(readers.length));
+			if (WinscardConstants.SCARD_E_TIMEOUT == statusError.intValue())
 				return false;
 			else check("SCardGetStatusChange", statusError);
 
 			if (usePnp) {
-				boolean pnpChange = 0 != (knownReaders.get(0).getEventState() & WinscardConstants.SCARD_STATE_CHANGED);
+				boolean pnpChange = 0 != (knownReaders.get(0).dwEventState.intValue() & WinscardConstants.SCARD_STATE_CHANGED);
 				if (pnpChange)
 					updateKnownReaders();
 			}
@@ -385,27 +386,27 @@ public class Smartcardio extends Provider {
 			else if ("T=CL".equals(protocol)) dwPreferredProtocols = 0;  // and SCARD_SHARE_DIRECT
 			else throw new IllegalArgumentException("Protocol should be one of T=0, T=1, *, T=CL. Got " + protocol);
 			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
-			IntByReference pdwActiveProtocol = new IntByReference();
+			DwordByReference pdwActiveProtocol = new DwordByReference();
 	
-			long err = libInfo.lib.SCardConnect(scardContext, name, SCARD_SHARE_SHARED, dwPreferredProtocols, phCard, pdwActiveProtocol).longValue();
+			long err = libInfo.lib.SCardConnect(scardContext, name, new Dword(SCARD_SHARE_SHARED), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol).longValue();
 			switch ((int)err) {
 			case SCARD_S_SUCCESS:
 				Winscard.SCardHandle scardHandle = phCard.getValue();
-				IntByReference readerLength = new IntByReference();
-				IntByReference currentState = new IntByReference();
-				IntByReference currentProtocol = new IntByReference();
+				DwordByReference readerLength = new DwordByReference();
+				DwordByReference currentState = new DwordByReference();
+				DwordByReference currentProtocol = new DwordByReference();
 				ByteBuffer atrBuf = ByteBuffer.allocate(Smartcardio.MAX_ATR_SIZE);
-				IntByReference atrLength = new IntByReference(Smartcardio.MAX_ATR_SIZE);
-				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, null, readerLength, currentState, currentProtocol, atrBuf, atrLength).longValue());
-				int readerLengthInt = readerLength.getValue();
+				DwordByReference atrLength = new DwordByReference(new Dword(Smartcardio.MAX_ATR_SIZE));
+				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, null, readerLength, currentState, currentProtocol, atrBuf, atrLength));
+				int readerLengthInt = readerLength.getValue().intValue();
 				ByteBuffer readerName = ByteBuffer.allocate(readerLengthInt);
 				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, readerName, readerLength, currentState, currentProtocol, atrBuf, atrLength).longValue());
-				int atrLengthInt = atrLength.getValue();
+				int atrLengthInt = atrLength.getValue().intValue();
 				atrBuf.limit(atrLengthInt);
 				byte[] atrBytes = new byte[atrBuf.remaining()];
 				atrBuf.get(atrBytes);
 				ATR atr = new ATR(atrBytes);
-				int currentProtocolInt = currentProtocol.getValue();
+				int currentProtocolInt = currentProtocol.getValue().intValue();
 				return new JnaCard(libInfo, scardContext, scardHandle, atr, currentProtocolInt);
 			case WinscardConstants.SCARD_W_REMOVED_CARD:
 				throw new JnaCardNotPresentException(err, "Card not present.");
@@ -417,26 +418,26 @@ public class Smartcardio extends Provider {
 		@Override public boolean isCardPresent() throws CardException {
 			int dwPreferredProtocols = SCARD_PROTOCOL_ANY;
 			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
-			IntByReference pdwActiveProtocol = new IntByReference();
-			SCardReaderState[] rgReaderStates = libInfo.createSCardReaderStateArray(1);
-			rgReaderStates[0] = libInfo.createSCardReaderState();
-			rgReaderStates[0].setReaderName(name);
-			long err = libInfo.lib.SCardConnect(scardContext, name, SCARD_SHARE_DIRECT, dwPreferredProtocols, phCard, pdwActiveProtocol).longValue();
-			if ((int)err == SCARD_E_NO_SMARTCARD)
+			DwordByReference pdwActiveProtocol = new DwordByReference();
+			SCardReaderState[] rgReaderStates = new SCardReaderState[1];
+			new SCardReaderState().toArray((Structure[])rgReaderStates);
+			rgReaderStates[0].szReader = name;
+			Dword err = libInfo.lib.SCardConnect(scardContext, name, new Dword(SCARD_SHARE_DIRECT), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol);
+			if (err.intValue() == SCARD_E_NO_SMARTCARD)
 				return false;
 			else check("SCardConnect", err);
 			Winscard.SCardHandle scardHandle = phCard.getValue();
 			try {
-				IntByReference readerLength = new IntByReference();
-				IntByReference currentState = new IntByReference();
-				IntByReference currentProtocol = new IntByReference();
+				DwordByReference readerLength = new DwordByReference();
+				DwordByReference currentState = new DwordByReference();
+				DwordByReference currentProtocol = new DwordByReference();
 				ByteBuffer atrBuf = ByteBuffer.allocate(Smartcardio.MAX_ATR_SIZE);
-				IntByReference atrLength = new IntByReference(Smartcardio.MAX_ATR_SIZE);
+				DwordByReference atrLength = new DwordByReference(new Dword(Smartcardio.MAX_ATR_SIZE));
 				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, null, readerLength, currentState, currentProtocol, atrBuf, atrLength).longValue());
-				int currentStateInt = currentState.getValue();
+				int currentStateInt = currentState.getValue().intValue();
 				return 0 != (currentStateInt & SCARD_PRESENT);
 			} finally {
-				libInfo.lib.SCardDisconnect(scardHandle, JnaCard.SCARD_LEAVE_CARD);
+				libInfo.lib.SCardDisconnect(scardHandle, new Dword(JnaCard.SCARD_LEAVE_CARD));
 			}
 		}
 		private boolean waitHelper(long timeoutMs, boolean cardPresent) throws JnaPCSCException {
@@ -444,19 +445,20 @@ public class Smartcardio extends Provider {
 				throw new IllegalArgumentException("Negative timeout " + timeoutMs);
 			if (timeoutMs == 0)
 				timeoutMs = WinscardConstants.INFINITE;
-			SCardReaderState[] rgReaderStates = libInfo.createSCardReaderStateArray(1);
-			SCardReaderState readerState = rgReaderStates[0] = libInfo.createSCardReaderState();
-			rgReaderStates[0].setReaderName(name);
-			int remainingTimeout = (int) timeoutMs;
-			while (cardPresent != (0 != (readerState.getEventState() & WinscardConstants.SCARD_STATE_PRESENT))) {
+			SCardReaderState[] rgReaderStates = new SCardReaderState[1];
+			new SCardReaderState().toArray((Structure[])rgReaderStates);
+			SCardReaderState readerState = rgReaderStates[0];
+			readerState.szReader = name;
+			int remainingTimeout = (int)timeoutMs;
+			while (cardPresent != (0 != (readerState.dwEventState.intValue() & WinscardConstants.SCARD_STATE_PRESENT))) {
 				long startTime = System.currentTimeMillis();
-				long err = libInfo.lib.SCardGetStatusChange(scardContext, remainingTimeout, rgReaderStates, rgReaderStates.length).longValue();
+				Dword err = libInfo.lib.SCardGetStatusChange(scardContext, new Dword(remainingTimeout), rgReaderStates, new Dword(rgReaderStates.length));
 				long endTime = System.currentTimeMillis();
-				if (WinscardConstants.SCARD_E_TIMEOUT == (int)err)
+				if (WinscardConstants.SCARD_E_TIMEOUT == err.intValue())
 					return false;
 				check("SCardGetStatusChange", err);
-				readerState.setCurrentState(readerState.getEventState());
-				readerState.setEventState(0);
+				readerState.dwCurrentState = readerState.dwEventState;
+				readerState.dwEventState = new Dword(0);
 				if (remainingTimeout != WinscardConstants.INFINITE) {
 					if (remainingTimeout < endTime - startTime)
 						return false;
@@ -501,13 +503,13 @@ public class Smartcardio extends Provider {
 		public static final int SCARD_UNPOWER_CARD = 2;
 		public static final int SCARD_EJECT_CARD = 3;
 		@Override public void endExclusive() throws CardException {
-			check("SCardEndTransaction", libInfo.lib.SCardEndTransaction(scardHandle, SCARD_LEAVE_CARD));
+			check("SCardEndTransaction", libInfo.lib.SCardEndTransaction(scardHandle, new Dword(SCARD_LEAVE_CARD)));
 			// TODO: handle error SCARD_W_RESET_CARD esp. in Windows
 		}
 
 		@Override public void disconnect(boolean reset) throws CardException {
 			int dwDisposition = reset ? SCARD_RESET_CARD : SCARD_LEAVE_CARD;
-			check("SCardDisconnect", libInfo.lib.SCardDisconnect(scardHandle, dwDisposition));
+			check("SCardDisconnect", libInfo.lib.SCardDisconnect(scardHandle, new Dword(dwDisposition)));
 		}
 
 		@Override public ATR getATR() {return atr;}
@@ -542,10 +544,10 @@ public class Smartcardio extends Provider {
 			// there's no way from the API to know how big a receive buffer to use.
 			// Sun uses 8192 bytes, so we'll do the same.
 			ByteBuffer receiveBuf = ByteBuffer.allocate(8192);
-			IntByReference lpBytesReturned = new IntByReference();
+			DwordByReference lpBytesReturned = new DwordByReference();
 			ByteBuffer arg1Wrapped = ByteBuffer.wrap(arg1);
-			check("SCardControl", libInfo.lib.SCardControl(scardHandle, controlCode, arg1Wrapped, arg1.length, receiveBuf, receiveBuf.remaining(), lpBytesReturned));
-			int bytesReturned = lpBytesReturned.getValue();
+			check("SCardControl", libInfo.lib.SCardControl(scardHandle, new Dword(controlCode), arg1Wrapped, new Dword(arg1.length), receiveBuf, new Dword(receiveBuf.remaining()), lpBytesReturned));
+			int bytesReturned = lpBytesReturned.getValue().intValue();
 			receiveBuf.limit(bytesReturned);
 			byte[] r = new byte[bytesReturned];
 			receiveBuf.get(r);
@@ -837,11 +839,11 @@ public class Smartcardio extends Provider {
 			byte cla = getClassByte(originalCla, channel);
 			command.put(cla);
 			command.position(originalPosition);
-			IntByReference recvLength = new IntByReference(response.remaining());
-			check("SCardTransmit", card.libInfo.lib.SCardTransmit(card.scardHandle, pioSendPci, command, command.remaining(), null, response, recvLength));
+			DwordByReference recvLength = new DwordByReference(new Dword(response.remaining()));
+			check("SCardTransmit", card.libInfo.lib.SCardTransmit(card.scardHandle, pioSendPci, command, new Dword(command.remaining()), null, response, recvLength));
 			command.position(command.remaining());
 			// TODO: retry to read all the data
-			int recvLengthInt = recvLength.getValue();
+			int recvLengthInt = recvLength.getValue().intValue();
 			assert recvLengthInt >= 0;
 			int newPosition = response.position() + recvLengthInt;
 			response.position(newPosition);
@@ -900,7 +902,7 @@ public class Smartcardio extends Provider {
 		return pcsc_multi2jstring(multiString, Charset.forName("UTF-8"));
 	}
 
-	private static void check(String message, NativeLong code) throws JnaPCSCException {
+	private static void check(String message, Dword code) throws JnaPCSCException {
 		check(message, code.longValue());
 	}
 
