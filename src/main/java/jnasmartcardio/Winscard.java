@@ -121,7 +121,7 @@ class Winscard {
 		// uint32_t cbAtr;
 		public int cbAtr;
 		public byte[] rgbAtr = new byte[WinscardConstants.MAX_ATR_SIZE];
-		protected WinscardSCardReaderState(int align){super(align);}
+		protected WinscardSCardReaderState(int align){super((Pointer)null,align);}
 		public WinscardSCardReaderState(){super(); assert this.size() == Pointer.SIZE * 2 + 12 + 36;}
 		public WinscardSCardReaderState(String szReader) {this(); this.szReader = szReader;}
 		@Override protected List<String> getFieldOrder() {
@@ -182,7 +182,7 @@ class Winscard {
 		// DWORD cbAtr;
 		public NativeLong cbAtr;
 		public byte[] rgbAtr = new byte[WinscardConstants.MAX_ATR_SIZE];
-		public LinuxSCardReaderState(){super(ALIGN_DEFAULT); assert this.size() == Pointer.SIZE * 2 + NativeLong.SIZE * 3 + 33;}
+		public LinuxSCardReaderState(){super((Pointer)null,ALIGN_DEFAULT); assert this.size() == Pointer.SIZE * 2 + NativeLong.SIZE * 3 + 33;}
 		public LinuxSCardReaderState(String szReader) {this(); this.szReader = szReader;}
 		@Override protected List<String> getFieldOrder() {
 			return Arrays.asList("szReader", "pvUserData", "dwCurrentState", "dwEventState", "cbAtr", "rgbAtr");
