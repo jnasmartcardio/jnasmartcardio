@@ -447,8 +447,8 @@ class Winscard {
 	public static WinscardLibInfo openLib() {
 		String libraryName = Platform.isWindows() ? WINDOWS_PATH : Platform.isMac() ? MAC_PATH : PCSC_PATH;
 		WinscardLibrary lib;
-		if (Platform.isWindows() || Platform.isMac()) {
-			HashMap<Object, Object> options = new HashMap<Object, Object>();
+		HashMap<Object, Object> options = new HashMap<Object, Object>();
+		if (Platform.isWindows()) {
 			final Set<String> asciiSuffixNames = new HashSet<String>();
 			asciiSuffixNames.addAll(Arrays.asList("SCardListReaderGroups", "SCardListReaders", "SCardGetStatusChange", "SCardConnect", "SCardStatus"));
 			options.put(Library.OPTION_FUNCTION_MAPPER, new FunctionMapper() {
@@ -459,9 +459,11 @@ class Winscard {
 					return name;
 				}
 			});
+		}
+		if (Platform.isWindows() || Platform.isMac()) {
 			lib = (WinscardLibrary) Native.loadLibrary(libraryName, WinscardLibrary.class, options);
 		} else {
-			PcscLiteLibrary linuxPcscLib = (PcscLiteLibrary) Native.loadLibrary(libraryName, PcscLiteLibrary.class);
+			PcscLiteLibrary linuxPcscLib = (PcscLiteLibrary) Native.loadLibrary(libraryName, PcscLiteLibrary.class, options);
 			lib = new PcscLiteAdapter(linuxPcscLib);
 		}
 		Class<? extends SCardReaderState> scardReaderStateClass;
