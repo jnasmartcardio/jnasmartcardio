@@ -62,20 +62,27 @@ class Winscard {
 			}
 		}
 	}
-	public static class SCardHandle extends Structure implements Structure.ByValue {
-		public NativeLong scard;
-		public SCardHandle(NativeLong nativeLong) {this.scard = nativeLong;}
-		@Override protected List<String> getFieldOrder() {
-			return Arrays.asList("scard");
+	public static class SCardHandle extends IntegerType {
+		private static final long serialVersionUID = 1L;
+		public static final int SIZE = Platform.isWindows() ? Pointer.SIZE : DWORD_SIZE;
+		/** no-arg constructor needed for {@link NativeMappedConverter#defaultValue()}*/
+		public SCardHandle() {this(0l);}
+		public SCardHandle(long value) {
+			super(SIZE, value);
 		}
 	}
 	public static class SCardHandleByReference extends ByReference {
-		public SCardHandleByReference() {super(NativeLong.SIZE);}
+		public SCardHandleByReference() {super(SCardHandle.SIZE);}
 		public SCardHandle getValue() {
-			return new SCardHandle(getPointer().getNativeLong(0));
+			long v = SCardContext.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
+			return new SCardHandle(v);
 		}
 		public void setValue(SCardHandle context) {
-			getPointer().setNativeLong(0, context.scard);
+			if (SCardContext.SIZE == 4) {
+				getPointer().setInt(0, context.intValue());
+			} else {
+				getPointer().setLong(0, context.longValue());
+			}
 		}
 	}
 	// typedef struct _SCARD_IO_REQUEST {
