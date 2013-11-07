@@ -312,7 +312,6 @@ public class Smartcardio extends Provider {
 				knownReadersChanged = false;
 				// allocate a contiguous array of struct, and copy
 				SCardReaderState[] arr = libInfo.createSCardReaderStateArray(knownReaders.size());
-				//knownReaders.get(0).toArray(knownReaders.toArray(arr));
 				libInfo.createSCardReaderState().toArray(arr);
 				for (int i = 0; i < knownReaders.size(); i++) {
 					SCardReaderState oldReader = knownReaders.get(i);
@@ -337,17 +336,10 @@ public class Smartcardio extends Provider {
 			} else {
 				readers = knownReaders.toArray(libInfo.createSCardReaderStateArray(knownReaders.size()));
 			}
-			//timeoutMs = 2000;
 			NativeLong statusError = libInfo.lib.SCardGetStatusChange(scardContext, (int)timeoutMs, readers, readers.length);
 			if (WinscardConstants.SCARD_E_TIMEOUT == (int)statusError.longValue())
 				return false;
 			else check("SCardGetStatusChange", statusError);
-			for (SCardReaderState reader: readers) {
-				String name = reader.getReaderName();
-				int currentState = reader.getCurrentState();
-				int eventState = reader.getEventState();
-				System.out.format("%x -> %x %s%n", currentState, eventState,name);
-			}
 
 			if (usePnp) {
 				boolean pnpChange = 0 != (knownReaders.get(0).getEventState() & WinscardConstants.SCARD_STATE_CHANGED);
@@ -429,7 +421,6 @@ public class Smartcardio extends Provider {
 			SCardReaderState[] rgReaderStates = libInfo.createSCardReaderStateArray(1);
 			rgReaderStates[0] = libInfo.createSCardReaderState();
 			rgReaderStates[0].setReaderName(name);
-			// TODO: on Windows, just call SCardLocateCards
 			long err = libInfo.lib.SCardConnect(scardContext, name, SCARD_SHARE_DIRECT, dwPreferredProtocols, phCard, pdwActiveProtocol).longValue();
 			if ((int)err == SCARD_E_NO_SMARTCARD)
 				return false;
@@ -534,6 +525,7 @@ public class Smartcardio extends Provider {
 		}
 
 		@Override public CardChannel openLogicalChannel() throws CardException {
+			// TODO: implement
 			// manage channel: request a new logical channel from 0x01 to 0x13
 //			ByteBuffer command = JnaCardChannel.prepareRequest(new CommandAPDU(0, 0x70, 0x00, 0x00, 1));
 			
@@ -602,7 +594,6 @@ public class Smartcardio extends Provider {
 			byte[] commandCopy = command.getBytes();
 			ByteBuffer response = transmitImpl(commandCopy, null);
 
-			System.out.format("%d vs %s%n",response.position(), 2+command.getNe());
 			ResponseAPDU responseApdu = convertResponse(response);
 			return responseApdu;
 		}
@@ -847,7 +838,6 @@ public class Smartcardio extends Provider {
 			command.put(cla);
 			command.position(originalPosition);
 			IntByReference recvLength = new IntByReference(response.remaining());
-			System.out.format("SCardTrasmit(command: %d bytes, receive buffer: %d bytes)%n", command.remaining(), response.remaining());
 			check("SCardTransmit", card.libInfo.lib.SCardTransmit(card.scardHandle, pioSendPci, command, command.remaining(), null, response, recvLength));
 			command.position(command.remaining());
 			// TODO: retry to read all the data

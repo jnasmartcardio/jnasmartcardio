@@ -74,11 +74,11 @@ class Winscard {
 	public static class SCardHandleByReference extends ByReference {
 		public SCardHandleByReference() {super(SCardHandle.SIZE);}
 		public SCardHandle getValue() {
-			long v = SCardContext.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
+			long v = SCardHandle.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
 			return new SCardHandle(v);
 		}
 		public void setValue(SCardHandle context) {
-			if (SCardContext.SIZE == 4) {
+			if (SCardHandle.SIZE == 4) {
 				getPointer().setInt(0, context.intValue());
 			} else {
 				getPointer().setLong(0, context.longValue());
