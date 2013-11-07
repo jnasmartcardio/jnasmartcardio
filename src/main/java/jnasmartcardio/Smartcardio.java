@@ -909,6 +909,9 @@ public class Smartcardio extends Provider {
 	private static void check(String message, long code) throws JnaPCSCException {
 		if (code == 0)
 			return;
-		throw new JnaPCSCException(code, String.format("%s got response 0x%x (%s: %s)", message, code, WinscardConstants.ERROR_TO_VARIABLE_NAME.get((int)code), WinscardConstants.ERROR_TO_DESCRIPTION.get((int)code)));
+		int icode = (int)code;
+		String codeName = WinscardConstants.ERROR_TO_VARIABLE_NAME.get(icode);
+		String codeDescription = WinscardConstants.ERROR_TO_DESCRIPTION.get(icode);
+		throw new JnaPCSCException(code, String.format("%s got response 0x%x (%s: %s)", message, icode, codeName, codeDescription));
 	}
 }
