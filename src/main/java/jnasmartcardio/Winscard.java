@@ -172,15 +172,10 @@ class Winscard {
 	 */
 	public static class SCardReaderState extends Structure {
 		private static final int ALIGN = Platform.isMac() ? ALIGN_NONE : ALIGN_DEFAULT;
-		// const char *szReader;
 		public String szReader;
-		// void *pvUserData;
 		public Pointer pvUserData;
-		// uint32_t dwCurrentState;
 		public Dword dwCurrentState;
-		// uint32_t dwEventState;
 		public Dword dwEventState;
-		// uint32_t cbAtr;
 		public Dword cbAtr;
 		public byte[] rgbAtr = new byte[WinscardConstants.MAX_ATR_SIZE];
 		public SCardReaderState(){
@@ -203,41 +198,23 @@ class Winscard {
 	 * parameters differs on different platforms.
 	 */
 	public interface WinscardLibrary extends Library {
-		// LONG SCardEstablishContext (DWORD dwScope, LPCVOID pvReserved1, LPCVOID pvReserved2, LPSCARDCONTEXT phContext)
 		Dword SCardEstablishContext (Dword dwScope, Pointer pvReserved1, Pointer pvReserved2, SCardContextByReference phContext);
-		// LONG 	SCardReleaseContext (SCARDCONTEXT hContext)
 		Dword SCardReleaseContext(SCardContext hContext);
-		// LONG 	SCardConnect (SCARDCONTEXT hContext, LPCSTR szReader, DWORD dwShareMode, DWORD dwPreferredProtocols, LPSCARDHANDLE phCard, LPDWORD pdwActiveProtocol)
 		Dword SCardConnect(SCardContext hContext, String szReader, Dword dwSharMode, Dword dwPreferredProtocols, SCardHandleByReference phCard, DwordByReference pdwActiveProtocol);
-		// LONG 	SCardReconnect (SCARDHANDLE hCard, DWORD dwShareMode, DWORD dwPreferredProtocols, DWORD dwInitialization, LPDWORD pdwActiveProtocol)
 		Dword SCardReconnect(SCardHandle hCard, Dword dwShareMode, Dword dwPreferredProtocols, Dword dwInitialization, DwordByReference pdwActiveProtocol);
-		// LONG 	SCardDisconnect (SCARDHANDLE hCard, DWORD dwDisposition)
 		Dword SCardDisconnect (SCardHandle hCard, Dword dwDisposition);
-		// LONG 	SCardBeginTransaction (SCARDHANDLE hCard)
 		Dword SCardBeginTransaction(SCardHandle hCard);
-		// LONG 	SCardBeginTransaction (SCARDHANDLE hCard)
 		Dword SCardEndTransaction(SCardHandle hCard, Dword dwDisposition);
-		// LONG 	SCardStatus (SCARDHANDLE hCard, LPSTR mszReaderName, LPDWORD pcchReaderLen, LPDWORD pdwState, LPDWORD pdwProtocol, LPBYTE pbAtr, LPDWORD pcbAtrLen)
 		Dword SCardStatus(SCardHandle hCard, ByteBuffer mszReaderName, DwordByReference pcchReaderLen, DwordByReference pdwState, DwordByReference pdwProtocol, ByteBuffer pbAtr, DwordByReference pcbAtrLen);
-		// LONG 	SCardGetStatusChange (SCARDCONTEXT hContext, DWORD dwTimeout, SCARD_READERSTATE *rgReaderStates, DWORD cReaders)
 		Dword SCardGetStatusChange(SCardContext hContext, Dword dwTimeout, SCardReaderState[] rgReaderStates, Dword cReaders);
-		// LONG 	SCardControl (SCARDHANDLE hCard, DWORD dwControlCode, LPCVOID pbSendBuffer, DWORD cbSendLength, LPVOID pbRecvBuffer, DWORD cbRecvLength, LPDWORD lpBytesReturned)
 		Dword SCardControl(SCardHandle hCard, Dword dwControlCode, ByteBuffer pbSendBuffer, Dword cbSendLength, ByteBuffer pbRecvBuffer, Dword cbRecvLength, DwordByReference lpBytesReturned);
-		// LONG 	SCardGetAttrib (SCARDHANDLE hCard, DWORD dwAttrId, LPBYTE pbAttr, LPDWORD pcbAttrLen)
 		Dword SCardGetAttrib(SCardHandle hCard, Dword dwAttrId, ByteBuffer pbAttr, DwordByReference pcbAttrLen);
-		// LONG 	SCardSetAttrib (SCARDHANDLE hCard, DWORD dwAttrId, LPCBYTE pbAttr, DWORD cbAttrLen)
 		Dword SCardSetAttrib(SCardHandle hCard, Dword dwAttrId, ByteBuffer pbAttr, Dword cbAttrLen);
-		// LONG 	SCardTransmit (SCARDHANDLE hCard, const SCARD_IO_REQUEST *pioSendPci, LPCBYTE pbSendBuffer, DWORD cbSendLength, SCARD_IO_REQUEST *pioRecvPci, LPBYTE pbRecvBuffer, LPDWORD pcbRecvLength)
 		Dword SCardTransmit(SCardHandle hCard, ScardIoRequest pioSendPci, ByteBuffer pbSendBuffer, Dword cbSendLength, ScardIoRequest pioRecvPci, ByteBuffer pbRecvBuffer, DwordByReference pcbRecvLength);
-		// LONG 	SCardListReaders (SCARDCONTEXT hContext, LPCSTR mszGroups, LPSTR mszReaders, LPDWORD pcchReaders)
 		Dword SCardListReaders(SCardContext hContext, ByteBuffer mszGroups, ByteBuffer mszReaders, DwordByReference pcchReaders);
-		// LONG 	SCardFreeMemory (SCARDCONTEXT hContext, LPCVOID pvMem)
 		Dword SCardFreeMemory(SCardContext hContext, Pointer pvMem);
-		// LONG 	SCardListReaderGroups (SCARDCONTEXT hContext, LPSTR mszGroups, LPDWORD pcchGroups)
 		Dword SCardListReaderGroups(SCardContext hContext, ByteBuffer mszGroups, DwordByReference pcchGroups);
-		// LONG 	SCardCancel (SCARDCONTEXT hContext)
 		Dword SCardCancel(SCardContext hContext);
-		// LONG 	SCardIsValidContext (SCARDCONTEXT hContext)
 		Dword SCardIsValidContext (SCardContext hContext);
 	}
 	public static class WinscardLibInfo {
