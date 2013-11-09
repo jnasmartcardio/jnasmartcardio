@@ -20,7 +20,6 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.NativeMappedConverter;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
-import com.sun.jna.PointerType;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.ByReference;
 
@@ -131,14 +130,15 @@ class Winscard {
 			}
 		}
 	}
-	// typedef struct _SCARD_IO_REQUEST {
-	//   uint32_t dwProtocol;    /**< Protocol identifier */
-	//   uint32_t cbPciLength;   /**< Protocol Control Inf Length */
-	// }
-	/** The LPCSCARD_IO_REQUEST type passed to SCardTransmit. */
-	public static class ScardIoRequest extends PointerType {
+	public static class ScardIoRequest extends Structure {
+		public Dword dwProtocol;
+		public Dword cbPciLength;
 		public ScardIoRequest() {super();}
 		public ScardIoRequest(Pointer p) {super(p);}
+		@Override protected List<String> getFieldOrder() {
+			return Arrays.asList("dwProtocol", "cbPciLength");
+		}
+		@Override public String toString() {return String.format("%s{dwProtocol: %s, cbPciLength: %s}", getClass().getSimpleName(), dwProtocol, cbPciLength);}
 	}
 
 	/**
@@ -250,6 +250,12 @@ class Winscard {
 		ScardIoRequest SCARD_PCI_T0 = new ScardIoRequest(nativeLibrary.getGlobalVariableAddress("g_rgSCardT0Pci"));
 		ScardIoRequest SCARD_PCI_T1 = new ScardIoRequest(nativeLibrary.getGlobalVariableAddress("g_rgSCardT1Pci"));
 		ScardIoRequest SCARD_PCI_RAW = new ScardIoRequest(nativeLibrary.getGlobalVariableAddress("g_rgSCardRawPci"));
+		SCARD_PCI_T0.read();
+		SCARD_PCI_T1.read();
+		SCARD_PCI_RAW.read();
+		SCARD_PCI_T0.setAutoSynch(false);
+		SCARD_PCI_T1.setAutoSynch(false);
+		SCARD_PCI_RAW.setAutoSynch(false);
 		return new WinscardLibInfo(lib, SCARD_PCI_T0, SCARD_PCI_T1, SCARD_PCI_RAW);
 	}
 }
