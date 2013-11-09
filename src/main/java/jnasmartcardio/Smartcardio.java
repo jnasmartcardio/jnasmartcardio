@@ -522,17 +522,37 @@ public class Smartcardio extends Provider {
 			throw new IllegalStateException("Unknown protocol: " + protocol);
 		}
 
-		@Override public CardChannel getBasicChannel() {
+		@Override public JnaCardChannel getBasicChannel() {
 			return new JnaCardChannel(this, (byte)0, this.protocol == JnaCardTerminal.SCARD_PROTOCOL_T0);
 		}
 
+		/**
+		 * Open a logical channel.
+		 *
+		 * <p>
+		 * Common exceptions:
+		 * <ul>
+		 * <li>JnaCardException(6200): processing warning
+		 * <li>JnaCardException(6881): logical channel not supported
+		 * <li>JnaCardException(6a81): function not supported
+		 * </ul>
+		 */
 		@Override public CardChannel openLogicalChannel() throws CardException {
-			// TODO: implement
 			// manage channel: request a new logical channel from 0x01 to 0x13
-//			ByteBuffer command = JnaCardChannel.prepareRequest(new CommandAPDU(0, 0x70, 0x00, 0x00, 1));
-			
-			byte cla = 1;
-			return new JnaCardChannel(this, cla, this.protocol == JnaCardTerminal.SCARD_PROTOCOL_T0);
+			JnaCardChannel basicChannel = getBasicChannel();
+			ResponseAPDU response = basicChannel.transmit(new CommandAPDU(0, 0x70, 0x00, 0x00, 1));
+			int sw = response.getSW();
+			if (0x9000 == sw) {
+				byte[] body = response.getData();
+				if (body.length == 1) {
+					int channel = 0xff & body[0];
+					return new JnaCardChannel(this, channel, basicChannel.convertToShortApdus);
+				} else {
+					throw new JnaCardException(sw, String.format("Expected body of length 1 in response to manage channel request; got %d", body.length));
+				}
+			} else {
+				throw new JnaCardException(sw, String.format("Error: sw=%04x in response to manage channel command.", sw));
+			}
 		}
 		
 		/**
@@ -567,9 +587,9 @@ public class Smartcardio extends Provider {
 		 * 0 but the card transmits anyway, we'll get SCARD_E_NOT_TRANSACTED.
 		 */
 		private boolean ignoreLeWhenAllocating = true;
-		public JnaCardChannel(JnaCard card, int cla, boolean convertToShortApdus) {
+		public JnaCardChannel(JnaCard card, int channel, boolean convertToShortApdus) {
 			this.card = card;
-			this.channel = cla;
+			this.channel = channel;
 			this.convertToShortApdus = convertToShortApdus;
 		}
 		@Override public void close() throws CardException {
@@ -577,12 +597,13 @@ public class Smartcardio extends Provider {
 				return;
 			isClosed = true;
 			if (channel != 0) {
+				// manage channel: close
 				ByteBuffer command = ByteBuffer.wrap(new CommandAPDU(0, 0x70, 0x80, channel).getBytes());
 				ByteBuffer response = ByteBuffer.allocate(2);
 				transmitRaw(command, response);
 				response.rewind();
-				int sw = response.getShort();
-				if (sw != 0x6000) {
+				int sw = 0xffff & response.getShort();
+				if (sw != 0x9000) {
 					throw new JnaCardException(sw, "Could not close channel.");
 				}
 			}
