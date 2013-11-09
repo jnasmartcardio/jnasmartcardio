@@ -43,6 +43,7 @@ class Winscard {
 		public Dword(long value) {
 			super(SIZE, value);
 		}
+		@Override public String toString() {return String.format("%d", longValue());}
 	}
 
 	/** Pointer to a DWORD (LPDWORD) type used by WinSCard.h. */
@@ -81,6 +82,9 @@ class Winscard {
 		public static final int SIZE = Platform.isWindows() ? Pointer.SIZE : Dword.SIZE;
 		public Handle(long value) {
 			super(SIZE, value);
+		}
+		@Override public String toString() {
+			return String.format("%s{%x}", getClass().getSimpleName(), longValue());
 		}
 	}
 	/** Pointer to a handle. */
