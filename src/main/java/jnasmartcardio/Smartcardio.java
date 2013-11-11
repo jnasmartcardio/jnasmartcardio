@@ -417,29 +417,12 @@ public class Smartcardio extends Provider {
 			}
 		}
 		@Override public boolean isCardPresent() throws CardException {
-			int dwPreferredProtocols = SCARD_PROTOCOL_ANY;
-			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
-			DwordByReference pdwActiveProtocol = new DwordByReference();
 			SCardReaderState[] rgReaderStates = new SCardReaderState[1];
 			new SCardReaderState().toArray((Structure[])rgReaderStates);
 			rgReaderStates[0].szReader = name;
-			Dword err = libInfo.lib.SCardConnect(scardContext, name, new Dword(SCARD_SHARE_DIRECT), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol);
-			if (err.intValue() == SCARD_E_NO_SMARTCARD)
-				return false;
-			else check("SCardConnect", err);
-			Winscard.SCardHandle scardHandle = phCard.getValue();
-			try {
-				DwordByReference readerLength = new DwordByReference();
-				DwordByReference currentState = new DwordByReference();
-				DwordByReference currentProtocol = new DwordByReference();
-				ByteBuffer atrBuf = ByteBuffer.allocate(Smartcardio.MAX_ATR_SIZE);
-				DwordByReference atrLength = new DwordByReference(new Dword(Smartcardio.MAX_ATR_SIZE));
-				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, null, readerLength, currentState, currentProtocol, atrBuf, atrLength).longValue());
-				int currentStateInt = currentState.getValue().intValue();
-				return 0 != (currentStateInt & SCARD_PRESENT);
-			} finally {
-				libInfo.lib.SCardDisconnect(scardHandle, new Dword(JnaCard.SCARD_LEAVE_CARD));
-			}
+			SCardReaderState readerState = rgReaderStates[0];
+			check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, new Dword(0), rgReaderStates, new Dword(rgReaderStates.length)));
+			return 0 != (readerState.dwEventState.intValue() & WinscardConstants.SCARD_STATE_PRESENT);
 		}
 		private boolean waitHelper(long timeoutMs, boolean cardPresent) throws JnaPCSCException {
 			if (timeoutMs < 0)
