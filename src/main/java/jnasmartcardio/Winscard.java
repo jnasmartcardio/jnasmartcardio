@@ -72,64 +72,67 @@ class Winscard {
 	}
 
 	/**
-	 * The SCARDCONTEXT type defined in WinSCard.h, used for most SCard
-	 * functions. On Windows, it is a handle (ULONG_PTR). On PCSC, it is an
-	 * integer (int32_t on OS X, long on Linux) that increments from 1.
+	 * Base class for handles used in PC/SC. On Windows, it is a handle
+	 * (ULONG_PTR which cannot be dereferenced). On PCSC, it is an integer
+	 * (int32_t on OS X, long on Linux).
 	 */
-	public static class SCardContext extends IntegerType {
+	public static class Handle extends IntegerType {
 		private static final long serialVersionUID = 1L;
 		public static final int SIZE = Platform.isWindows() ? Pointer.SIZE : Dword.SIZE;
-		/** no-arg constructor needed for {@link NativeMappedConverter#defaultValue()}*/
-		public SCardContext() {this(0l);}
-		public SCardContext(long value) {
+		public Handle(long value) {
 			super(SIZE, value);
 		}
 	}
-	/** PSCARDCONTEXT used for SCardEstablishContext. */
-	public static class SCardContextByReference extends ByReference {
-		public SCardContextByReference() {super(SCardContext.SIZE);}
-		public SCardContext getValue() {
-			long v = SCardContext.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
-			return new SCardContext(v);
+	/** Pointer to a handle. */
+	public static class HandleByReference extends ByReference {
+		public HandleByReference() {super(Handle.SIZE);}
+		protected long getLong() {
+			long v = Handle.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
+			return v;
 		}
-		public void setValue(SCardContext context) {
+		protected void setLong(long value) {
 			if (SCardContext.SIZE == 4) {
-				getPointer().setInt(0, context.intValue());
+				getPointer().setInt(0, (int)value);
 			} else {
-				getPointer().setLong(0, context.longValue());
+				getPointer().setLong(0, value);
 			}
 		}
+	}
+
+	/**
+	 * The SCARDCONTEXT type defined in WinSCard.h, used for most SCard
+	 * functions.
+	 */
+	public static class SCardContext extends Handle {
+		private static final long serialVersionUID = 1L;
+		/** no-arg constructor needed for {@link NativeMappedConverter#defaultValue()}*/
+		public SCardContext() {this(0l);}
+		public SCardContext(long value) {super(value);}
+	}
+	/** PSCARDCONTEXT used for SCardEstablishContext. */
+	public static class SCardContextByReference extends HandleByReference {
+		public SCardContextByReference() {super();}
+		public SCardContext getValue() { return new SCardContext(getLong()); }
+		public void setValue(SCardContext context) { setLong(context.longValue()); }
 	}
 	
 	/**
 	 * The SCARDHANDLE type defined in WinSCard.h. It represents a connection to
-	 * a card. On Windows, it is a handle (ULONG_PTR). On PCSC, it is an integer
-	 * (int32_t on OS X, long on Linux).
+	 * a card.
 	 */
-	public static class SCardHandle extends IntegerType {
+	public static class SCardHandle extends Handle {
 		private static final long serialVersionUID = 1L;
-		public static final int SIZE = Platform.isWindows() ? Pointer.SIZE : Dword.SIZE;
 		/** no-arg constructor needed for {@link NativeMappedConverter#defaultValue()}*/
 		public SCardHandle() {this(0l);}
-		public SCardHandle(long value) {
-			super(SIZE, value);
-		}
+		public SCardHandle(long value) {super(value);}
 	}
 	/** PSCARDHANDLE used for SCardConnect. */
-	public static class SCardHandleByReference extends ByReference {
-		public SCardHandleByReference() {super(SCardHandle.SIZE);}
-		public SCardHandle getValue() {
-			long v = SCardHandle.SIZE == 4 ? getPointer().getInt(0) : getPointer().getLong(0);
-			return new SCardHandle(v);
-		}
-		public void setValue(SCardHandle context) {
-			if (SCardHandle.SIZE == 4) {
-				getPointer().setInt(0, context.intValue());
-			} else {
-				getPointer().setLong(0, context.longValue());
-			}
-		}
+	public static class SCardHandleByReference extends HandleByReference {
+		public SCardHandleByReference() {super();}
+		public SCardHandle getValue() { return new SCardHandle(getLong()); }
+		public void setValue(SCardHandle context) { setLong(context.longValue()); }
 	}
+
 	public static class ScardIoRequest extends Structure {
 		public Dword dwProtocol;
 		public Dword cbPciLength;
