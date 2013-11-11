@@ -349,6 +349,7 @@ public class Smartcardio extends Provider {
 			}
 			return true;
 		}
+		@Override public String toString() {return String.format("%s{scardContext=%s}", getClass().getSimpleName(), scardContext);}
 	}
 
 	public static class JnaCardTerminal extends CardTerminal {
@@ -473,6 +474,7 @@ public class Smartcardio extends Provider {
 		@Override public boolean waitForCardPresent(long timeoutMs) throws CardException {
 			return waitHelper(timeoutMs, true);
 		}
+		@Override public String toString() {return String.format("%s{scardHandle=%s, name=%s}", getClass().getSimpleName(), scardContext, name);}
 	}
 
 	public static class JnaCard extends Card {
@@ -573,6 +575,7 @@ public class Smartcardio extends Provider {
 			receiveBuf.get(r);
 			return r;
 		}
+		@Override public String toString() {return String.format("%s{scardHandle=%s}", getClass().getSimpleName(), scardHandle);}
 	}
 
 	public static class JnaCardChannel extends CardChannel {
@@ -870,6 +873,7 @@ public class Smartcardio extends Provider {
 			response.position(newPosition);
 			return recvLengthInt;
 		}
+		@Override public String toString() {return String.format("%s{card=%s, channel=%d}", getClass().getSimpleName(), this.card, this.channel);}
 	}
 
 	public static class JnaPCSCException extends CardException {
