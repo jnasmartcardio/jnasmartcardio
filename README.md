@@ -24,7 +24,7 @@ Download the most recent published release from the Maven Central Repository. If
 	<dependency>
 		<groupId>io.github.jnasmartcardio</groupId>
 		<artifactId>jnasmartcardio</artifactId>
-		<version>0.1.0</version>
+		<version>0.2.0</version>
 	</dependency>
 
 To build from source, run the following command to compile, jar, and install to your local Maven repository. Don’t forget to also modify your own project’s pom.xml to depend on the same SNAPSHOT version. You may need to learn the [Maven version arcana](http://docs.codehaus.org/display/MAVEN/Dependency+Mediation+and+Conflict+Resolution).
@@ -41,6 +41,10 @@ Once you have jnasmartcardio in your classpath, there are 3 ways to use this sma
     * `TerminalFactory.getInstance("PC/SC", null, new Smartcardio());`
 
 Once you have a TerminalFactory, you call `cardTerminals = factory.terminals();`; see [javax.smartcardio API javadoc](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html).
+
+Changelog
+---
+See [CHANGES.md](CHANGES.md).
 
 Caveats
 ---
