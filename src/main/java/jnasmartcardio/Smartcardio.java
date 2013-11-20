@@ -51,55 +51,43 @@ public class Smartcardio extends Provider {
 		public static final int SCARD_SCOPE_TERMINAL = 1;
 		public static final int SCARD_SCOPE_SYSTEM = 2;
 		private final Winscard.WinscardLibInfo libInfo;
-		private final Winscard.SCardContext scardContext;
-		private boolean isClosed;
+
+		public JnaTerminalFactorySpi(Object parameter) {
+			this(Winscard.openLib());
+		}
 		
+		public JnaTerminalFactorySpi(Winscard.WinscardLibInfo libInfo) {
+			this.libInfo = libInfo;
+		}
 		/**
 		 * Likely exceptions
 		 * <ul>
-		 * <li>IllegalStateException(JnaPCSCException(
+		 * <li>EstablishContextException(JnaPCSCException(
 		 * {@link WinscardConstants#SCARD_E_NO_READERS_AVAILABLE})) the Daemon
 		 * is not running (Windows 8, Linux). On Windows 8, the daemon is shut
 		 * down when there are no readers plugged in. New PCSC versions (at
 		 * least 1.7) also allow no new connections when there are no readers
 		 * plugged in.
-		 * <li>IllegalStateException(JnaPCSCException(
+		 * <li>EstablishContextException(JnaPCSCException(
 		 * {@link WinscardConstants#SCARD_E_NO_SERVICE})) the Daemon is not
 		 * running (OS X). On OS X (pcscd 1.4), the daemon is shut down when
 		 * there are no readers plugged in, and the library gives this error.
 		 * Can also happen on Windows when you don't have permission.
 		 * </ul>
 		 */
-		public JnaTerminalFactorySpi(Object parameter) {
-			this.libInfo = Winscard.openLib();
+		@Override public CardTerminals engineTerminals() throws EstablishContextException {
 			Winscard.SCardContextByReference phContext = new Winscard.SCardContextByReference();
 			try {
 				check("SCardEstablishContext", libInfo.lib.SCardEstablishContext(new Dword(SCARD_SCOPE_SYSTEM), null, null, phContext));
 			} catch (JnaPCSCException e) {
-				throw new IllegalStateException(e);
+				throw new EstablishContextException(e);
 			}
-			this.scardContext = phContext.getValue();
-		}
-		
-		public JnaTerminalFactorySpi(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
-			this.libInfo = libInfo;
-			this.scardContext = scardContext;
-		}
-		@Override public CardTerminals engineTerminals() {
+			Winscard.SCardContext scardContext = phContext.getValue();
 			return new JnaCardTerminals(libInfo, scardContext);
-		}
-		@Override public void finalize() throws CardException {
-			close();
-		}
-		public synchronized void close() throws CardException {
-			if (isClosed)
-				return;
-			isClosed = true;
-			check("SCardReleaseContext", libInfo.lib.SCardReleaseContext(scardContext));
 		}
 	}
 
-	public static class JnaCardTerminals extends CardTerminals {
+	public static class JnaCardTerminals extends CardTerminals implements AutoCloseable {
 		private final Winscard.SCardContext scardContext;
 		private final Winscard.WinscardLibInfo libInfo;
 		/** The readers that waitForChange observed in its last invocation. */
@@ -116,6 +104,7 @@ public class Smartcardio extends Provider {
 		 * service exits and gives errors when there are no readers.
 		 */
 		private final boolean usePnp = true;
+		private boolean isClosed;
 		public JnaCardTerminals(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
@@ -350,6 +339,16 @@ public class Smartcardio extends Provider {
 			return true;
 		}
 		@Override public String toString() {return String.format("%s{scardContext=%s}", getClass().getSimpleName(), scardContext);}
+		@Override public void close() throws JnaPCSCException {
+			synchronized (this) {
+				if (isClosed) return;
+				else isClosed = true;
+			}
+			check("SCardReleaseContext", libInfo.lib.SCardReleaseContext(scardContext));
+		}
+		@Override public void finalize() throws JnaPCSCException {
+			close();
+		}
 	}
 
 	public static class JnaCardTerminal extends CardTerminal {
@@ -786,6 +785,17 @@ public class Smartcardio extends Provider {
 		public JnaPCSCException(Throwable cause) {this(0, null, cause);}
 		public JnaPCSCException(long code, String message) {this(code, message, null);}
 		public JnaPCSCException(long code, String message, Throwable cause) {super(message, cause); this.code = code;}
+	}
+
+	/**
+	 * Wrapper for {@link JnaPCSCException} because TerminalFactory.terminals()
+	 * is not allowed to throw checked exceptions.
+	 */
+	public static class EstablishContextException extends RuntimeException {
+		private static final long serialVersionUID = 1L;
+		public EstablishContextException(JnaPCSCException cause) {super(cause);}
+		/** Overridden with more specific return type so you don't have to cast,*/
+		@Override public JnaPCSCException getCause() {return (JnaPCSCException) super.getCause();}
 	}
 
 	public static class JnaCardNotPresentException extends CardNotPresentException {
