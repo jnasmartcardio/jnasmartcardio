@@ -138,14 +138,14 @@ public class Smartcardio extends Provider {
 					boolean shouldAdd = state == State.CARD_INSERTION && cardInserted ||
 							state == State.CARD_REMOVAL && cardRemoved;
 					if (shouldAdd)
-						r.add(new JnaCardTerminal(libInfo, scardContext, readerState.szReader));
+						r.add(new JnaCardTerminal(libInfo, this, readerState.szReader));
 				}
 				if (state == State.CARD_REMOVAL) {
 					for (int i = 0; i < zombieReaders.size(); i++) {
 						SCardReaderState readerState = zombieReaders.get(i);
 						boolean wasPresent = 0 != (readerState.dwCurrentState.intValue() & WinscardConstants.SCARD_STATE_PRESENT);
 						if (wasPresent)
-							r.add(new JnaCardTerminal(libInfo, scardContext, readerState.szReader));
+							r.add(new JnaCardTerminal(libInfo, this, readerState.szReader));
 					}
 				}
 				return r;
@@ -175,7 +175,7 @@ public class Smartcardio extends Provider {
 			CardTerminal[] cardTerminals = new CardTerminal[filteredReaderNames.size()];
 			for (int i = 0; i < filteredReaderNames.size(); i++) {
 				String name = filteredReaderNames.get(i);
-				cardTerminals[i] = new JnaCardTerminal(libInfo, scardContext, name);
+				cardTerminals[i] = new JnaCardTerminal(libInfo, this, name);
 			}
 			return Collections.unmodifiableList(Arrays.asList(cardTerminals));
 		}
@@ -353,7 +353,7 @@ public class Smartcardio extends Provider {
 
 	public static class JnaCardTerminal extends CardTerminal {
 		private final Winscard.WinscardLibInfo libInfo;
-		private final Winscard.SCardContext scardContext;
+		private final JnaCardTerminals cardTerminals;
 		private final String name;
 		public static final int SCARD_SHARE_EXCLUSIVE = 1;
 		public static final int SCARD_SHARE_SHARED = 2;
@@ -372,9 +372,9 @@ public class Smartcardio extends Provider {
 		public static final int SCARD_NEGOTIABLE = 0x20;
 		public static final int SCARD_SPECIFIC = 0x40;
 		
-		public JnaCardTerminal(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext, String name) {
+		public JnaCardTerminal(Winscard.WinscardLibInfo libInfo, JnaCardTerminals cardTerminals, String name) {
 			this.libInfo = libInfo;
-			this.scardContext = scardContext;
+			this.cardTerminals = cardTerminals;
 			this.name = name;
 		}
 		@Override public String getName() {return name;}
@@ -388,7 +388,7 @@ public class Smartcardio extends Provider {
 			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
 			DwordByReference pdwActiveProtocol = new DwordByReference();
 	
-			long err = libInfo.lib.SCardConnect(scardContext, name, new Dword(SCARD_SHARE_SHARED), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol).longValue();
+			long err = libInfo.lib.SCardConnect(cardTerminals.scardContext, name, new Dword(SCARD_SHARE_SHARED), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol).longValue();
 			switch ((int)err) {
 			case SCARD_S_SUCCESS:
 				Winscard.SCardHandle scardHandle = phCard.getValue();
@@ -407,7 +407,7 @@ public class Smartcardio extends Provider {
 				atrBuf.get(atrBytes);
 				ATR atr = new ATR(atrBytes);
 				int currentProtocolInt = currentProtocol.getValue().intValue();
-				return new JnaCard(libInfo, scardContext, scardHandle, atr, currentProtocolInt);
+				return new JnaCard(libInfo, this, scardHandle, atr, currentProtocolInt);
 			case WinscardConstants.SCARD_W_REMOVED_CARD:
 				throw new JnaCardNotPresentException(err, "Card not present.");
 			default:
@@ -420,7 +420,7 @@ public class Smartcardio extends Provider {
 			new SCardReaderState().toArray((Structure[])rgReaderStates);
 			rgReaderStates[0].szReader = name;
 			SCardReaderState readerState = rgReaderStates[0];
-			check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(scardContext, new Dword(0), rgReaderStates, new Dword(rgReaderStates.length)));
+			check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(cardTerminals.scardContext, new Dword(0), rgReaderStates, new Dword(rgReaderStates.length)));
 			return 0 != (readerState.dwEventState.intValue() & WinscardConstants.SCARD_STATE_PRESENT);
 		}
 		private boolean waitHelper(long timeoutMs, boolean cardPresent) throws JnaPCSCException {
@@ -435,7 +435,7 @@ public class Smartcardio extends Provider {
 			int remainingTimeout = (int)timeoutMs;
 			while (cardPresent != (0 != (readerState.dwEventState.intValue() & WinscardConstants.SCARD_STATE_PRESENT))) {
 				long startTime = System.currentTimeMillis();
-				Dword err = libInfo.lib.SCardGetStatusChange(scardContext, new Dword(remainingTimeout), rgReaderStates, new Dword(rgReaderStates.length));
+				Dword err = libInfo.lib.SCardGetStatusChange(cardTerminals.scardContext, new Dword(remainingTimeout), rgReaderStates, new Dword(rgReaderStates.length));
 				long endTime = System.currentTimeMillis();
 				if (WinscardConstants.SCARD_E_TIMEOUT == err.intValue())
 					return false;
@@ -456,12 +456,13 @@ public class Smartcardio extends Provider {
 		@Override public boolean waitForCardPresent(long timeoutMs) throws CardException {
 			return waitHelper(timeoutMs, true);
 		}
-		@Override public String toString() {return String.format("%s{scardHandle=%s, name=%s}", getClass().getSimpleName(), scardContext, name);}
+		@Override public String toString() {return String.format("%s{scardHandle=%s, name=%s}", getClass().getSimpleName(), cardTerminals.scardContext, name);}
 	}
 
 	public static class JnaCard extends Card {
 		private final Winscard.WinscardLibInfo libInfo;
-		private final Winscard.SCardContext scardContext;
+		@SuppressWarnings("unused")  // prevent context from being finalized.
+		private final CardTerminal cardTerminal;
 		private final Winscard.SCardHandle scardHandle;
 		private final ATR atr;
 		/**
@@ -470,9 +471,9 @@ public class Smartcardio extends Provider {
 		 * {@link JnaCardTerminal#SCARD_PROTOCOL_T1}
 		 */
 		private final int protocol;
-		public JnaCard(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext, Winscard.SCardHandle scardHandle, ATR atr, int protocol) {
+		public JnaCard(Winscard.WinscardLibInfo libInfo, JnaCardTerminal cardTerminal, Winscard.SCardHandle scardHandle, ATR atr, int protocol) {
 			this.libInfo = libInfo;
-			this.scardContext = scardContext;
+			this.cardTerminal = cardTerminal;
 			this.scardHandle = scardHandle;
 			this.atr = atr;
 			this.protocol = protocol;
