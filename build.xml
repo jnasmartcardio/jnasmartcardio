@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<project name="jnasmartcardio" default="dist" basedir=".">
+  <description>ANT build file for jnasmartcardio</description>
+  <property name="build" location="bin"/>
+  <target name="init">
+    <mkdir dir="${build}"/>
+  </target>
+  <target name="compile" depends="init" description="compile the source">
+    <javac srcdir="src/main/java" destdir="${build}" includeantruntime="false" source="1.6" target="1.6">
+      <compilerarg value="-Xlint"/>
+      <classpath>
+        <pathelement location="lib/jna-4.0.0.jar"/>
+      </classpath>
+    </javac>
+  </target>
+  <target name="dist" depends="compile" description="generate the distribution">
+    <jar destfile="jnasmartcardio.jar">
+      <fileset dir="${build}"/>
+      <zipgroupfileset file="lib/jna-4.0.0.jar"/>
+    </jar>
+  </target>
+  <target name="clean" description="clean up">
+    <delete dir="${build}"/>
+    <delete file="jnasmartcardio.jar"/>
+  </target>
+</project>
