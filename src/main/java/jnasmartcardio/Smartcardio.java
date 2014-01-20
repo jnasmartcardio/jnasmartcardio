@@ -508,7 +508,7 @@ public class Smartcardio extends Provider {
 		}
 
 		@Override public JnaCardChannel getBasicChannel() {
-			return new JnaCardChannel(this, (byte)0, this.protocol == JnaCardTerminal.SCARD_PROTOCOL_T0);
+			return new JnaCardChannel(this, (byte)0);
 		}
 
 		/**
@@ -531,7 +531,7 @@ public class Smartcardio extends Provider {
 				byte[] body = response.getData();
 				if (body.length == 1) {
 					int channel = 0xff & body[0];
-					return new JnaCardChannel(this, channel, basicChannel.convertToShortApdus);
+					return new JnaCardChannel(this, channel);
 				} else {
 					throw new JnaCardException(sw, String.format("Expected body of length 1 in response to manage channel request; got %d", body.length));
 				}
@@ -565,18 +565,10 @@ public class Smartcardio extends Provider {
 		private final JnaCard card;
 		private final int channel;
 		private boolean isClosed;
-		private boolean convertToShortApdus;
-		/**
-		 * Ignore Le for {@link #transmit(CommandAPDU)}. This means that when
-		 * transmit needs to allocate a ByteBuffer, it will always include extra
-		 * bytes in case the card ignores Le. Otherwise, when user expects Le of
-		 * 0 but the card transmits anyway, we'll get SCARD_E_NOT_TRANSACTED.
-		 */
-		private boolean ignoreLeWhenAllocating = true;
-		public JnaCardChannel(JnaCard card, int channel, boolean convertToShortApdus) {
+	
+		public JnaCardChannel(JnaCard card, int channel) {
 			this.card = card;
 			this.channel = channel;
-			this.convertToShortApdus = convertToShortApdus;
 		}
 		@Override public void close() throws CardException {
 			if (isClosed)
@@ -592,6 +584,9 @@ public class Smartcardio extends Provider {
 				if (sw != 0x9000) {
 					throw new JnaCardException(sw, "Could not close channel.");
 				}
+			} else {
+				// Mimick SUN with self-protection
+				throw new IllegalStateException("Basic channel can not be closed");
 			}
 		}
 		@Override public Card getCard() {return card;}
@@ -668,134 +663,56 @@ public class Smartcardio extends Provider {
 			int endPosition = response.position();
 			return endPosition - startPosition;
 		}
-		private int getExtendedLc(byte[] commandApdu) {
-			if (commandApdu.length == 7)
-				return 0;
-			int len = (commandApdu[5] & 0xff << 8) | commandApdu[6] & 0xff;
-			assert len != 0;
-			return len;
-		}
-		private int getExtendedLe(byte[] commandApdu, int Lc) {
-			int len;
-			if (Lc == 0)
-				len = (commandApdu[5] & 0xff << 8) | commandApdu[6] & 0xff;
-			else if (commandApdu.length == 7 + Lc) {
-				return 0;
-			} else {
-				assert 0 == commandApdu[7 + Lc];
-				len = (commandApdu[8 + Lc] & 0xff << 8) | commandApdu[9 + Lc] & 0xff;
-			}
-			if (len == 0)
-				len = 65536;
-			return len;
-		}
-		private int getShortLc(byte[] commandApdu) {
-			if (commandApdu.length <= 5)
-				return 0;
-			int len = commandApdu[4] & 0xff;
-			assert len != 0;
-			return len;
-		}
-		private int getShortLe(byte[] commandApdu, int Lc) {
-			int len;
-			if (commandApdu.length <= 5) {
-				return 0;
-			} else if (Lc == 0) {
-				len = commandApdu[4] & 0xff;
-			} else if (commandApdu.length <= 5 + Lc) {
-				return 0;
-			} else {
-				len = commandApdu[5 + Lc] & 0xff;
-			}
-			if (len == 0)
-				len = 65536;
-			return len;
-		}
+		
 		private boolean isExtendedApdu(byte[] commandApdu) {
 			return commandApdu.length >= 7 && commandApdu[4] == 0;
 		}
-		private ByteBuffer transmitImpl(byte[] copy, ByteBuffer response) throws JnaPCSCException {
-			copy[0] = getClassByte(copy[0], channel);
-			boolean isExtendedApdu = isExtendedApdu(copy);
-			final int originalLc = isExtendedApdu ? getExtendedLc(copy) : getShortLc(copy);
-			final int originalLe = isExtendedApdu ? getExtendedLe(copy, originalLc) : getShortLe(copy, originalLc);
+		private ByteBuffer transmitImpl(byte[] copy, ByteBuffer response) throws CardException, JnaPCSCException {
+			// Mimic SUN with self-defense 
+			if (card.protocol == JnaCardTerminal.SCARD_PROTOCOL_T0 && isExtendedApdu(copy))
+				throw new CardException("Extended APDU requires T=1");
+			
+			copy[0] = getClassByte(copy[0], getChannelNumber());
 			ByteBuffer command = ByteBuffer.wrap(copy);
-			if (convertToShortApdus && isExtendedApdu && originalLc == 0) {
-				// 2e. CLA INS P1 P2 00 Le1 Le2. Convert to Le=00.
-				copy[4] = originalLe > 256 ? (byte) 0x00 : (byte)originalLe;
-				command.limit(5);
-			} else if (convertToShortApdus && isExtendedApdu && 0 < originalLc && originalLc <= 255) {
-				// 4e, with small body. CLA INS P1 P2 00 00 Lc2 <body> 00 Le1 Le2.
-				// 3e, with small body. CLA INS P1 P2 00 00 Lc2 <body>
-				System.arraycopy(copy, 7, copy, 5, originalLc);
-				command.limit(5 + originalLc);
-			} else if (convertToShortApdus && isExtendedApdu && 256 <= originalLc) {
-				// 4e, with big body. CLA INS P1 P2 00 Lc1 Lc2 <body> 00 Le1 Le2.
-				// 3e, with big body. CLA INS P1 P2 00 Lc1 Lc2 <body>
-				// TODO: wrap in envelope command
-				System.arraycopy(copy, 7, copy, 5, originalLc);
-				command.limit(5 + originalLc);
-				throw new IllegalArgumentException("Can't transmit big bodies with T=0. (you'll need to do your own envelope)");
-			} else if (convertToShortApdus && ! isExtendedApdu && originalLc > 0 && originalLe > 0) {
-				// 4s: CLA INS P1 P2 Lc <body> Le
-				command.limit(5 + originalLc);
-			}
 			int commandPosition = command.position();
 			int commandLimit = command.limit();
 	
-			boolean isResponseFinal = response != null;
-			final int originalPos = response == null ? 0 : response.position();
-			int Le = originalLe;
-			while (true) {
-				if (isResponseFinal) {
-				} else if (response == null) {
-					int responseBufferSize = ignoreLeWhenAllocating ? Math.max(8192, Le + 2) : Le + 2;
-					response = ByteBuffer.allocate(responseBufferSize);
-				} else if (response != null && ignoreLeWhenAllocating) {
-					int neededCapacity = Math.max(Le + 2, 4096);
-					if (response.remaining() < neededCapacity) {
-						ByteBuffer oldResponse = response;
-						oldResponse.flip();
-						response = ByteBuffer.allocate(response.position() + neededCapacity);
-						response.put(oldResponse);
-					}
-				}
+			// Allocate memory if not given: 8K
+			if (response == null)
+				response = ByteBuffer.allocate(8192);
+
+			// TODO: implement compatibility with SUN properties
+			// Don't loop forever.
+			for (int i=0; i<8; i++) {
 				int posBeforeTransmit = response.position();
 				transmitRaw(command, response);
+				
+				// Roll back for SW
 				response.position(response.position() - 2);
 				byte sw1 = response.get();
 				byte sw2 = response.get();
-				if (0x6c == sw1 && copy[4] != 0) {
-					int Na = 0x00 == sw2 ? 256 : sw2 & 0xff;
-					copy[commandLimit - 1] = (byte) Na;
+				if (0x6c == sw1) {
+					copy[commandLimit - 1] = sw2;
 					response.position(posBeforeTransmit);
-					command.position(commandPosition);
-					command.limit(commandLimit);
-					Le = Na;
-					response.limit(response.limit() - 2);
 				} else if (0x61 == sw1) {
+					// Don't touch CLA as per 7816-4
 					command.position(commandPosition + 1);
 					command.put((byte) 0xc0);
 					command.put((byte) 0x00);
-					command.put((byte) 0x00);
-					if (isExtendedApdu) {
-						Le = 4096;
-						command.put((byte) 0x00);
-						command.put((byte) (Le >> 8));
-						command.put((byte) Le);
-					} else {
-						Le = 256;
-						command.put((byte) Le);
-					}
+					command.put((byte) 0x00);	
+					command.put(sw2);
 					command.limit(command.position());
 					command.position(commandPosition);
-					response.limit(response.limit() - 2);
+					// concatenate new response to the same buffer.
+					// Roll back to overwrite current SW.
+					response.position(response.position() - 2);
 				} else {
 					break;
 				}
 			}
 			return response;
 		}
+
 		static byte getClassByte(byte origCla, int channelNumber) {
 			if ((0xe0 & origCla) != 0 && (0xc0 & origCla) != 0x40)
 				// Not an interindustry class; don't touch it.
@@ -840,18 +757,12 @@ public class Smartcardio extends Provider {
 			default:
 				throw new IllegalStateException("Don't know how to transmit for protocol " + card.protocol);	
 			}
-			int originalPosition = command.position();
-			byte originalCla = command.get();
-			command.position(originalPosition);
-			byte cla = getClassByte(originalCla, channel);
-			command.put(cla);
-			command.position(originalPosition);
+
 			DwordByReference recvLength = new DwordByReference(new Dword(response.remaining()));
 			check("SCardTransmit", card.libInfo.lib.SCardTransmit(card.scardHandle, pioSendPci, command, new Dword(command.remaining()), null, response, recvLength));
-			command.position(command.remaining());
-			// TODO: retry to read all the data
 			int recvLengthInt = recvLength.getValue().intValue();
 			assert recvLengthInt >= 0;
+			
 			int newPosition = response.position() + recvLengthInt;
 			response.position(newPosition);
 			return recvLengthInt;
