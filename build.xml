@@ -16,7 +16,7 @@
   <target name="dist" depends="compile" description="generate the distribution">
     <jar destfile="jnasmartcardio.jar">
       <fileset dir="${build}"/>
-      <zipgroupfileset file="lib/jna-4.0.0.jar"/>
+      <zipfileset src="lib/jna-4.0.0.jar" excludes="com/sun/jna/sunos-*/,com/sun/jna/win32ce-arm/"/>
     </jar>
   </target>
   <target name="clean" description="clean up">
