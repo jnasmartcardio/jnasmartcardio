@@ -655,11 +655,10 @@ public class Smartcardio extends Provider {
 			if (response == null) {
 				throw new IllegalArgumentException("response is null");
 			}
-			byte[] copy = new byte[command.remaining()];
-			command.get(copy);
-			command = ByteBuffer.wrap(copy);
+			byte[] commandCopy = new byte[command.remaining()];
+			command.get(commandCopy);
 			int startPosition = response.position();
-			transmitImpl(copy, response);
+			transmitImpl(commandCopy, response);
 			int endPosition = response.position();
 			return endPosition - startPosition;
 		}
@@ -667,15 +666,22 @@ public class Smartcardio extends Provider {
 		private boolean isExtendedApdu(byte[] commandApdu) {
 			return commandApdu.length >= 7 && commandApdu[4] == 0;
 		}
-		private ByteBuffer transmitImpl(byte[] copy, ByteBuffer response) throws CardException, JnaPCSCException {
+		
+		/**
+		 * Set the CLA byte, transmit the command, send Get Response commands as
+		 * needed, and return the response ByteBuffer.
+		 * 
+		 * <p>
+		 * The command is modified as is convenient, since it is assumed to
+		 * already be a copy.
+		 */
+		private ByteBuffer transmitImpl(byte[] command, ByteBuffer response) throws CardException, JnaPCSCException {
 			// Mimic SUN with self-defense 
-			if (card.protocol == JnaCardTerminal.SCARD_PROTOCOL_T0 && isExtendedApdu(copy))
+			if (card.protocol == JnaCardTerminal.SCARD_PROTOCOL_T0 && isExtendedApdu(command))
 				throw new CardException("Extended APDU requires T=1");
 			
-			copy[0] = getClassByte(copy[0], getChannelNumber());
-			ByteBuffer command = ByteBuffer.wrap(copy);
-			int commandPosition = command.position();
-			int commandLimit = command.limit();
+			command[0] = getClassByte(command[0], getChannelNumber());
+			ByteBuffer commandBuffer = ByteBuffer.wrap(command);
 	
 			// Allocate memory if not given: 8K
 			if (response == null)
@@ -685,24 +691,25 @@ public class Smartcardio extends Provider {
 			// Don't loop forever.
 			for (int i=0; i<8; i++) {
 				int posBeforeTransmit = response.position();
-				transmitRaw(command, response);
-				
-				// Roll back for SW
+				transmitRaw(commandBuffer, response);
+
+				// Roll back to read SW
 				response.position(response.position() - 2);
 				byte sw1 = response.get();
 				byte sw2 = response.get();
 				if (0x6c == sw1) {
-					copy[commandLimit - 1] = sw2;
+					command[command.length - 1] = sw2;
 					response.position(posBeforeTransmit);
+					commandBuffer.rewind();
 				} else if (0x61 == sw1) {
+					// send Get Response command.
 					// Don't touch CLA as per 7816-4
-					command.position(commandPosition + 1);
-					command.put((byte) 0xc0);
-					command.put((byte) 0x00);
-					command.put((byte) 0x00);	
-					command.put(sw2);
-					command.limit(command.position());
-					command.position(commandPosition);
+					command[1] = (byte) 0xc0;
+					command[2] = (byte) 0x00;
+					command[3] = (byte) 0x00;
+					command[4] = sw2;
+					commandBuffer.position(0);
+					commandBuffer.limit(5);
 					// concatenate new response to the same buffer.
 					// Roll back to overwrite current SW.
 					response.position(response.position() - 2);
@@ -739,8 +746,9 @@ public class Smartcardio extends Provider {
 		}
 
 		/**
-		 * Transmit the given apdu. It's almost raw, except that it does set the
-		 * CLA byte based on the channel.
+		 * Transmit the given apdu. On success, the command buffer is advanced
+		 * to its limit, and the response buffer is advanced by the number of
+		 * bytes received from the card.
 		 */
 		private int transmitRaw(ByteBuffer command, ByteBuffer response) throws JnaPCSCException {
 			Winscard.ScardIoRequest pioSendPci;
@@ -762,7 +770,8 @@ public class Smartcardio extends Provider {
 			check("SCardTransmit", card.libInfo.lib.SCardTransmit(card.scardHandle, pioSendPci, command, new Dword(command.remaining()), null, response, recvLength));
 			int recvLengthInt = recvLength.getValue().intValue();
 			assert recvLengthInt >= 0;
-			
+
+			command.position(command.limit());
 			int newPosition = response.position() + recvLengthInt;
 			response.position(newPosition);
 			return recvLengthInt;
