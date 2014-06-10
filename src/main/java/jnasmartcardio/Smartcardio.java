@@ -531,6 +531,8 @@ public class Smartcardio extends Provider {
 				byte[] body = response.getData();
 				if (body.length == 1) {
 					int channel = 0xff & body[0];
+					if (channel == 0 || channel > 0x13)
+						throw new JnaCardException(sw, String.format("Expected manage channel response to contain channel number in 1-19; got %d", channel));
 					return new JnaCardChannel(this, channel);
 				} else {
 					throw new JnaCardException(sw, String.format("Expected body of length 1 in response to manage channel request; got %d", body.length));
@@ -590,7 +592,7 @@ public class Smartcardio extends Provider {
 			}
 		}
 		@Override public Card getCard() {return card;}
-		@Override public int getChannelNumber() {return channel & 0xff;}
+		@Override public int getChannelNumber() {return channel;}
 		@Override public ResponseAPDU transmit(CommandAPDU command) throws CardException {
 			if (command == null) {
 				throw new IllegalArgumentException("command is null");
@@ -621,6 +623,7 @@ public class Smartcardio extends Provider {
 		 * <p>
 		 * This method handles:
 		 * <ul>
+		 * <li>Set the channel number bits in the class byte.
 		 * <li>If T=0, then convert APDU to T=0 TPDU (ISO 7816-3). In
 		 * particular, if T=0 and there is request data, then strip the Le field
 		 * <li>If sw = 61xx, then call c0 get response and concatenate
@@ -731,10 +734,10 @@ public class Smartcardio extends Provider {
 				cla = (origCla & 0x10) | channelNumber;
 			} else if (0x04 <= channelNumber && channelNumber <= 0x13) {
 				// Further interindustry values of CLA: channel is 4 + bottom 4 bits
-				int mask = channelNumber - 4;
-				cla = (origCla & 0x70) | mask | 0x40;
+				int channelBits = channelNumber - 4;
+				cla = (origCla & 0x70) | channelBits | 0x40;
 			} else {
-				throw new RuntimeException("Bad channel number; expected 0-19; got " + channelNumber);
+				throw new IllegalStateException("Bad channel number; expected 0-19; got " + channelNumber);
 			}
 			return (byte) cla;
 		}
