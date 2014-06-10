@@ -723,19 +723,27 @@ public class Smartcardio extends Provider {
 			return response;
 		}
 
+		/**
+		 * Set the channel number on the class byte. Does not touch the command
+		 * chaining control or secure messaging indication, but they must be in
+		 * the correct bits for this channel number.
+		 */
 		static byte getClassByte(byte origCla, int channelNumber) {
-			if ((0xe0 & origCla) != 0 && (0xc0 & origCla) != 0x40)
+			if ((0x80 & origCla) != 0) {
 				// Not an interindustry class; don't touch it.
 				return origCla;
+			}
 			int cla;
 			// 7816-4/2005 5.1.1 Class byte
 			if (0 <= channelNumber && channelNumber <= 3) {
-				// First interindustry values of CLA: channel is bottom 2 bits
-				cla = (origCla & 0x10) | channelNumber;
+				// First interindustry values of CLA
+				// Class byte is 000x xxcc, where cc is channel number
+				cla = (origCla & 0x1c) | channelNumber;
 			} else if (0x04 <= channelNumber && channelNumber <= 0x13) {
-				// Further interindustry values of CLA: channel is 4 + bottom 4 bits
+				// Further interindustry values of CLA
+				// Class byte is 01xx cccc, where cccc is channel number - 4.
 				int channelBits = channelNumber - 4;
-				cla = (origCla & 0x70) | channelBits | 0x40;
+				cla = (origCla & 0x30) | channelBits | 0x40;
 			} else {
 				throw new IllegalStateException("Bad channel number; expected 0-19; got " + channelNumber);
 			}
