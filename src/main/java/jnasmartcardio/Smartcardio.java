@@ -563,7 +563,7 @@ public class Smartcardio extends Provider {
 		@Override public String toString() {return String.format("%s{scardHandle=%s}", getClass().getSimpleName(), scardHandle);}
 	}
 
-	public static class JnaCardChannel extends CardChannel {
+	public static class JnaCardChannel extends CardChannel implements AutoCloseable {
 		private final JnaCard card;
 		private final int channel;
 		private boolean isClosed;
