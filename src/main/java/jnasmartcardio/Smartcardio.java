@@ -593,6 +593,29 @@ public class Smartcardio extends Provider {
 		}
 		@Override public Card getCard() {return card;}
 		@Override public int getChannelNumber() {return channel;}
+
+		/**
+		 * Transmit the command and return the result APDU.
+		 *
+		 * <p>
+		 * Note: currently, the response (including status bytes) is limited to
+		 * 8192 bytes.
+		 *
+		 * <p>
+		 * The command sent to the card is the same as the given command, except
+		 * that:
+		 * <ul>
+		 * <li>The class byte (CLA) is modified to contain the channel number.
+		 * The secure messaging indication and command chaining control are not
+		 * modified, but they must already be in the correct bits depending on
+		 * the channel number!
+		 * <li>If T=0 and there is request data, then the Le byte is removed.
+		 * </ul>
+		 *
+		 * <p>
+		 * Automatically handles sw=61xx (get response) and sw=6cxx (Le)
+		 * responses by re-sending the appropriate request.
+		 */
 		@Override public ResponseAPDU transmit(CommandAPDU command) throws CardException {
 			if (command == null) {
 				throw new IllegalArgumentException("command is null");
@@ -607,7 +630,53 @@ public class Smartcardio extends Provider {
 		/**
 		 * Transmit the given command APDU and store the response APDU. Returns
 		 * the length of the response APDU.
-		 * 
+		 *
+		 * <p>
+		 * The response (including status bytes) must fit within the given
+		 * response buffer.
+		 *
+		 * <p>
+		 * The command sent to the card is the same as the given command, except
+		 * that:
+		 * <ul>
+		 * <li>The class byte (CLA) is modified to contain the channel number.
+		 * The secure messaging indication and command chaining control are not
+		 * modified, but they must already be in the correct bits depending on
+		 * the channel number!
+		 * <li>If T=0 and there is request data, then the Le byte is removed.
+		 * </ul>
+		 *
+		 * <p>
+		 * Automatically handles sw=61xx (get response) and sw=6cxx (Le)
+		 * responses by re-sending the appropriate request.
+		 */
+		@Override public int transmit(ByteBuffer command, ByteBuffer response) throws CardException {
+			if (command == null) {
+				throw new IllegalArgumentException("command is null");
+			}
+			if (response == null) {
+				throw new IllegalArgumentException("response is null");
+			}
+			byte[] commandCopy = new byte[command.remaining()];
+			command.get(commandCopy);
+			int startPosition = response.position();
+			transmitImpl(commandCopy, response);
+			int endPosition = response.position();
+			return endPosition - startPosition;
+		}
+
+		private boolean isExtendedApdu(byte[] commandApdu) {
+			return commandApdu.length >= 7 && commandApdu[4] == 0;
+		}
+
+		/**
+		 * Set the CLA byte, transmit the command, send Get Response commands as
+		 * needed, and return the response ByteBuffer.
+		 *
+		 * <p>
+		 * The command is modified as is convenient, since it is assumed to
+		 * already be a copy.
+		 *
 		 * <p>
 		 * Reminder: there are several forms of APDU:<br>
 		 * 1. CLA INS P1 P2. No body, no response body.<br>
@@ -650,33 +719,6 @@ public class Smartcardio extends Provider {
 		 * T=1 protocol: CLA INS P1 P2 [Lc Data] [Le].<br>
 		 * Lc is either 01-ff or 000001-00ffff.<br>
 		 * Le is either 00-ff (00=256) or 0000-ffff. (0000=65536)
-		 */
-		@Override public int transmit(ByteBuffer command, ByteBuffer response) throws CardException {
-			if (command == null) {
-				throw new IllegalArgumentException("command is null");
-			}
-			if (response == null) {
-				throw new IllegalArgumentException("response is null");
-			}
-			byte[] commandCopy = new byte[command.remaining()];
-			command.get(commandCopy);
-			int startPosition = response.position();
-			transmitImpl(commandCopy, response);
-			int endPosition = response.position();
-			return endPosition - startPosition;
-		}
-		
-		private boolean isExtendedApdu(byte[] commandApdu) {
-			return commandApdu.length >= 7 && commandApdu[4] == 0;
-		}
-		
-		/**
-		 * Set the CLA byte, transmit the command, send Get Response commands as
-		 * needed, and return the response ByteBuffer.
-		 * 
-		 * <p>
-		 * The command is modified as is convenient, since it is assumed to
-		 * already be a copy.
 		 */
 		private ByteBuffer transmitImpl(byte[] command, ByteBuffer response) throws CardException, JnaPCSCException {
 			// Mimic SUN with self-defense 
