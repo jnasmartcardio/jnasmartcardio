@@ -833,7 +833,7 @@ public class Smartcardio extends Provider {
 	 * from libj2pcsc on OS X java7.
 	 * @param  
 	 */
-	public static List<String> pcsc_multi2jstring(byte[] multiString, Charset charset) {
+	private static List<String> pcsc_multi2jstring(byte[] multiString, Charset charset) {
 		List<String> r = new ArrayList<String>();
 		int from = 0, to = 0;
 		for (; to < multiString.length; to++) {
@@ -848,7 +848,7 @@ public class Smartcardio extends Provider {
 		throw new IllegalArgumentException("Multistring must be end with a null-terminated empty string.");
 	}
 
-	public static List<String> pcsc_multi2jstring(byte[] multiString) {
+	private static List<String> pcsc_multi2jstring(byte[] multiString) {
 		return pcsc_multi2jstring(multiString, Charset.forName("UTF-8"));
 	}
 
