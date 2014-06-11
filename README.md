@@ -19,6 +19,8 @@ Another implementation of the smartcardio API is [intarsys/smartcard-io](https:/
 Installation
 ---
 
+Requires JDK 1.6 or above.
+
 Download the most recent published release from the Maven Central Repository. If you are using maven, you simply add this dependency to your own project’s pom.xml:
 
 	<dependency>

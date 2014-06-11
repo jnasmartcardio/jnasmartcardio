@@ -87,7 +87,7 @@ public class Smartcardio extends Provider {
 		}
 	}
 
-	public static class JnaCardTerminals extends CardTerminals implements AutoCloseable {
+	public static class JnaCardTerminals extends CardTerminals {
 		private final Winscard.SCardContext scardContext;
 		private final Winscard.WinscardLibInfo libInfo;
 		/** The readers that waitForChange observed in its last invocation. */
@@ -339,7 +339,7 @@ public class Smartcardio extends Provider {
 			return true;
 		}
 		@Override public String toString() {return String.format("%s{scardContext=%s}", getClass().getSimpleName(), scardContext);}
-		@Override public void close() throws JnaPCSCException {
+		public void close() throws JnaPCSCException {
 			synchronized (this) {
 				if (isClosed) return;
 				else isClosed = true;
@@ -563,7 +563,7 @@ public class Smartcardio extends Provider {
 		@Override public String toString() {return String.format("%s{scardHandle=%s}", getClass().getSimpleName(), scardHandle);}
 	}
 
-	public static class JnaCardChannel extends CardChannel implements AutoCloseable {
+	public static class JnaCardChannel extends CardChannel {
 		private final JnaCard card;
 		private final int channel;
 		private boolean isClosed;
