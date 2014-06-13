@@ -8,7 +8,7 @@ Alternatives
 ---
 The JRE already comes with implementations of `javax.smartcardio`. What’s wrong with it? If you are already using the smartcardio API, there are a couple reasons you might consider switching to a JNA solution:
 
-* The [default smartcardio library in JRE 1.7 on 64-bit OS X is compiled incorrectly](http://mail.openjdk.java.net/pipermail/security-dev/2013-March/006913.html). In particular, `Terminal.isCardPresent()` always returns false, `Terminals.list()` occasionally causes SIGSEGV, and `Terminal.waitForCard(boolean, long)` and `Terminals.waitForChange(long)` don’t wait.
+* The [default smartcardio library in JRE 7 and JRE 8 on 64-bit OS X is compiled incorrectly](http://ludovicrousseau.blogspot.com/2014/03/evolution-of-apple-pcsc-lite-from.html); [bug 7195480](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7195480). In particular, `Terminal.isCardPresent()` always returns false, `Terminals.list()` occasionally causes SIGSEGV, and `Terminal.waitForCard(boolean, long)` and `Terminals.waitForChange(long)` don’t wait. Ivan Gerasimov (igerasim) [fixed `waitForCard`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010498.html) for JRE 7u80, 8u20, and 9. He also supposedly [fixed `list` and `isCardPresent`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010515.html), although I am suspicious of this commit.
 * The default smartcardio library only calls `SCardEstablishContext` once. If the daemon isn’t up yet, then your process will never be able to connect to it again. This is a big problem because in Windows 8, OS X, and new versions of pcscd, the daemon is not started until a reader is plugged in, and it quits when there are no more readers.
 * It’s easier to fix bugs in this project than it is to fix bugs in the libraries that are bundled with the JRE.
 
@@ -52,9 +52,9 @@ Caveats
 ---
 This library requires JNA to talk to the native libraries (winscard.dll, libpcsc.so, or PCSC). You can’t use this library if you are writing an applet or are otherwise using a security manager.
 
-Differences from JDK
+Differences from JRE
 ---
-Some things to keep in mind which are different from JDK:
+Some things to keep in mind which are different from JRE:
 
 Generally, all methods will throw a JnaPCSCException if the daemon/service is off (when there are no readers). On Windows 8, the service is stopped immediately when there are no more readers.
 
@@ -73,6 +73,8 @@ As well as waking up when a card is inserted/removed, waitForChange will also wa
 ### JnaCard
 
 [beginExclusive()](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/Card.html#beginExclusive%28%29) simply calls SCardBeginTransaction. It does not use thread-local storage, as Sun does.
+
+[disconnect(boolean reset)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/Card.html#disconnect%28boolean%29) did the opposite in Sun’s implementation, which suffered [bug 7047033](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7047033). Oracle fixed their implementation to match mine in JRE 7u80, 8u20, and 9. See [thread by Ivan Gerasimov](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010554.html).
 
 ### JnaCardChannel
 
