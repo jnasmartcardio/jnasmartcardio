@@ -8,9 +8,9 @@ Alternatives
 ---
 The JRE already comes with implementations of `javax.smartcardio`. What’s wrong with it? If you are already using the smartcardio API, there are a couple reasons you might consider switching to a JNA solution:
 
-* The [default smartcardio library in JRE 7 and JRE 8 on 64-bit OS X is compiled incorrectly](http://ludovicrousseau.blogspot.com/2014/03/evolution-of-apple-pcsc-lite-from.html); [bug 7195480](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7195480). In particular, `Terminal.isCardPresent()` always returns false, `Terminals.list()` occasionally causes SIGSEGV, and `Terminal.waitForCard(boolean, long)` and `Terminals.waitForChange(long)` don’t wait. Ivan Gerasimov (igerasim) [fixed `waitForCard`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010498.html) for JRE 7u80, 8u20, and 9. He also supposedly [fixed `list` and `isCardPresent`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010515.html), although I am suspicious of this commit.
+* The [default smartcardio library in JRE 7 and JRE 8 on 64-bit OS X was compiled incorrectly](http://ludovicrousseau.blogspot.com/2013/03/oracle-javaxsmartcardio-failures.html); [bug 7195480](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7195480). In particular, `Terminal.isCardPresent()` always returns false, `Terminals.list()` occasionally causes SIGSEGV, and `Terminal.waitForCard(boolean, long)` and `Terminals.waitForChange(long)` don’t wait. Ivan Gerasimov (igerasim) [fixed `waitForCard`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010498.html), [fixed `list` and `isCardPresent`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010515.html), and [fixed Card.openLogicalChannel](http://mail.openjdk.java.net/pipermail/security-dev/2014-June/010695.html) for JRE 7u80, 8u20, and 9.
 * The default smartcardio library only calls `SCardEstablishContext` once. If the daemon isn’t up yet, then your process will never be able to connect to it again. This is a big problem because in Windows 8, OS X, and new versions of pcscd, the daemon is not started until a reader is plugged in, and it quits when there are no more readers.
-* It’s easier to fix bugs in this project than it is to fix bugs in the libraries that are bundled with the JRE.
+* It’s easier to fix bugs in this project than it is to fix bugs in the libraries that are bundled with the JRE. Anybody can create and comment on issues.
 
 Another implementation of the smartcardio API is [intarsys/smartcard-io](https://github.com/intarsys/smartcard-io), which is much more mature than this project. Please consider it. You might choose jnasmartcardio instead because:
 
@@ -74,7 +74,7 @@ As well as waking up when a card is inserted/removed, waitForChange will also wa
 
 [beginExclusive()](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/Card.html#beginExclusive%28%29) simply calls SCardBeginTransaction. It does not use thread-local storage, as Sun does.
 
-[disconnect(boolean reset)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/Card.html#disconnect%28boolean%29) did the opposite in Sun’s implementation, which suffered [bug 7047033](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7047033). Oracle fixed their implementation to match mine in JRE 7u80, 8u20, and 9. See [thread by Ivan Gerasimov](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010554.html).
+[disconnect(boolean reset)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/Card.html#disconnect%28boolean%29) did the opposite in Sun’s implementation, which suffered [bug 7047033](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7047033). Ivan Gerasim of Oracle [fixed their implementation](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010554.html) to match mine in JRE 7u80, 8u20, and 9, although [the old behavior can be obtained by -Djdk.smartcard.invertReset=true in JRE 8](http://mail.openjdk.java.net/pipermail/security-dev/2014-July/010725.html).
 
 ### JnaCardChannel
 
