@@ -6,6 +6,7 @@ package jnasmartcardio;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -236,20 +237,56 @@ class Winscard {
 			this.SCARD_PCI_RAW = SCARD_PCI_RAW;
 		}
 	}
+
+	/**
+	 * FunctionMapper from identifier in WinSCard.h to the symbol in the
+	 * WinSCard.dll shared library on Windows that implements it.
+	 *
+	 * <p>
+	 * Each function that takes a string has an implementation taking char and a
+	 * different implementation that takes wchar_t. We use the ASCII version,
+	 * since it is unlikely for reader names to contain non-ASCII.
+	 */
+	private static class WindowsFunctionMapper implements FunctionMapper {
+		static final Set<String> asciiSuffixNames = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+			"SCardListReaderGroups",
+			"SCardListReaders",
+			"SCardGetStatusChange",
+			"SCardConnect",
+			"SCardStatus"
+		)));
+		@Override public String getFunctionName(NativeLibrary library, Method method) {
+			String name = method.getName();
+			if (asciiSuffixNames.contains(name))
+				name = name + 'A';
+			return name;
+		}
+	}
+
+	/**
+	 * FunctionMapper from identifier in winscard.h to the symbol in the PCSC
+	 * shared library on OSX that implements it.
+	 *
+	 * <p>
+	 * The SCardControl identifier is implemented by the SCardControl132 symbol,
+	 * since it appeared in pcsc-lite 1.3.2 and replaced an old function with a
+	 * different signature.
+	 */
+	private static class MacFunctionMapper implements FunctionMapper {
+		@Override public String getFunctionName(NativeLibrary library, Method method) {
+			String name = method.getName();
+			if ("SCardControl".equals(name))
+				name = "SCardControl132";
+			return name;
+		}
+	}
 	public static WinscardLibInfo openLib() {
 		String libraryName = Platform.isWindows() ? WINDOWS_PATH : Platform.isMac() ? MAC_PATH : PCSC_PATH;
 		HashMap<Object, Object> options = new HashMap<Object, Object>();
 		if (Platform.isWindows()) {
-			final Set<String> asciiSuffixNames = new HashSet<String>();
-			asciiSuffixNames.addAll(Arrays.asList("SCardListReaderGroups", "SCardListReaders", "SCardGetStatusChange", "SCardConnect", "SCardStatus"));
-			options.put(Library.OPTION_FUNCTION_MAPPER, new FunctionMapper() {
-				@Override public String getFunctionName(NativeLibrary library, Method method) {
-					String name = method.getName();
-					if (asciiSuffixNames.contains(name))
-						name = name + 'A';
-					return name;
-				}
-			});
+			options.put(Library.OPTION_FUNCTION_MAPPER, new WindowsFunctionMapper());
+		} else if (Platform.isMac()) {
+			options.put(Library.OPTION_FUNCTION_MAPPER, new MacFunctionMapper());
 		}
 		WinscardLibrary lib = (WinscardLibrary) Native.loadLibrary(libraryName, WinscardLibrary.class, options);
 		NativeLibrary nativeLibrary = NativeLibrary.getInstance(libraryName);
