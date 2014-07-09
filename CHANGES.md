@@ -1,3 +1,7 @@
+jnasmartcardio-0.2.3 (2014-07-09)
+===
+* [#19](https://github.com/jnasmartcardio/jnasmartcardio/issues/19) Card.transmitControlCommand failed on OS X.
+
 jnasmartcardio-0.2.2 (2014-06-11)
 ===
 * [#17](https://github.com/jnasmartcardio/jnasmartcardio/issues/17) Return to JDK 1.6 compatibility. Make JnaCardChannel and JnaCardTerminals no longer implement JDK 1.7-specific AutoCloseable.
