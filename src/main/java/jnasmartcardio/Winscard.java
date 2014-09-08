@@ -96,7 +96,7 @@ class Winscard {
 			return v;
 		}
 		protected void setLong(long value) {
-			if (SCardContext.SIZE == 4) {
+			if (Handle.SIZE == 4) {
 				getPointer().setInt(0, (int)value);
 			} else {
 				getPointer().setLong(0, value);
