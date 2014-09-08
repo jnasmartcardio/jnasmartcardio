@@ -2,11 +2,18 @@ jnasmartcardio
 ===
 (Previously known as jna2pcsc.) A re-implementation of the [`javax.smartcardio` API](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/). It allows you to communicate to a smart card (at the APDU level) from within Java.
 
-In case you aren’t familiar with the technology, a smart card is a tiny CPU that fits inside a piece of plastic the size of a credit card. For example, you can buy the MyEID for about $15 to securely store and create signatures from a 2048-bit RSA private key. In order to use a smart card, you also have to buy a $15 USB smart card reader. Once you plug in the smart card reader, you use the winscard library built-in to Windows or the pcsclite library on OS X and Linux to communicate with the card. This library is an adapter that converts the native winscard API to the friendly `javax.smartcardio` interfaces.
+This library allows you to transmit and receive application protocol data units (APDUs) specified by ISO/IEC 7816-3 to a smart card.
+
+This java library is built on top of the WinSCard native library that comes with the operating system (or libpcsclite1 installed on Linux), which in turn communicates to the myriad USB smart card readers, contactless card readers, and dongles.
+
+Protocols built on top of APDUs include PKCS#15 public key authentication, EMV credit/debit transaction, GSM SIM cellular subscriber information, CAC U.S. military identification, Mifare Classic or DESfire transit payment, and any number of custom protocols.
 
 Alternatives
 ---
-The JRE already comes with implementations of `javax.smartcardio`. What’s wrong with it? If you are already using the smartcardio API, there are a couple reasons you might consider switching to a JNA solution:
+
+First, if you are using smart cards for authentication and it comes with a PKCS#11 native library (or is supported by opensc-pkcs11), you should probably use the SunPKCS11 KeyStore provider instead of implementing the PKCS#15 client protocol yourself.
+
+Once you have decided on APDU communication, you may wonder why this library exists, given that the JRE already comes with an implementation of `javax.smartcardio`. What’s wrong with it? There are a couple reasons you might consider switching to a JNA solution:
 
 * The [default smartcardio library in JRE 7 and JRE 8 on 64-bit OS X was compiled incorrectly](http://ludovicrousseau.blogspot.com/2013/03/oracle-javaxsmartcardio-failures.html); [bug 7195480](http://bugs.java.com/bugdatabase/view_bug.do?bug_id=7195480). In particular, `Terminal.isCardPresent()` always returns false, `Terminals.list()` occasionally causes SIGSEGV, and `Terminal.waitForCard(boolean, long)` and `Terminals.waitForChange(long)` don’t wait. Ivan Gerasimov (igerasim) [fixed `waitForCard`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010498.html), [fixed `list` and `isCardPresent`](http://mail.openjdk.java.net/pipermail/security-dev/2014-May/010515.html), and [fixed Card.openLogicalChannel](http://mail.openjdk.java.net/pipermail/security-dev/2014-June/010695.html) for JRE 7u80, 8u20, and 9.
 * The default smartcardio library only calls `SCardEstablishContext` once. If the daemon isn’t up yet, then your process will never be able to connect to it again. This is a big problem because in Windows 8, OS X, and new versions of pcscd, the daemon is not started until a reader is plugged in, and it quits when there are no more readers.
@@ -64,7 +71,7 @@ Generally, all methods will throw a JnaPCSCException if the daemon/service is of
 
 ### JnaCardTerminals
 
-JnaCardTerminals owns the SCardContext native handle, and you should call cardTerminals.close() to clean up. Unfortunately, close() does not exist on the base class.
+JnaCardTerminals owns the SCardContext native handle, and you should call cardTerminals.close() to clean up. Unfortunately, close() does not exist on the base class, so this library also closes it in its finalizer.
 
 To make the implementation simpler, the caller must be able to handle spurious wakeups when calling [waitForChange(long)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CardTerminals.html#waitForChange%28long%29). In other words, `list(State.CARD_REMOVAL)` and `list(State.CARD_INSERTION)` might both be empty lists after waitForChange returns.
 
