@@ -392,15 +392,11 @@ public class Smartcardio extends Provider {
 			switch ((int)err) {
 			case SCARD_S_SUCCESS:
 				Winscard.SCardHandle scardHandle = phCard.getValue();
-				DwordByReference readerLength = new DwordByReference();
 				DwordByReference currentState = new DwordByReference();
 				DwordByReference currentProtocol = new DwordByReference();
 				ByteBuffer atrBuf = ByteBuffer.allocate(Smartcardio.MAX_ATR_SIZE);
 				DwordByReference atrLength = new DwordByReference(new Dword(Smartcardio.MAX_ATR_SIZE));
-				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, null, readerLength, currentState, currentProtocol, atrBuf, atrLength));
-				int readerLengthInt = readerLength.getValue().intValue();
-				ByteBuffer readerName = ByteBuffer.allocate(readerLengthInt);
-				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, readerName, readerLength, currentState, currentProtocol, atrBuf, atrLength).longValue());
+				check("SCardStatus", libInfo.lib.SCardStatus(scardHandle, null, null, currentState, currentProtocol, atrBuf, atrLength));
 				int atrLengthInt = atrLength.getValue().intValue();
 				atrBuf.limit(atrLengthInt);
 				byte[] atrBytes = new byte[atrBuf.remaining()];
