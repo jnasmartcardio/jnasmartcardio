@@ -291,10 +291,12 @@ public class Smartcardio extends Provider {
 				timeoutMs = WinscardConstants.INFINITE;
 
 			zombieReaders.clear();
-			// On Linux pcsclite 1.7.4, the PNP reader does not return
-			// immediately when there is already a reader present that isn't in
-			// the array. Strangely, it works fine in OS X.
-			if (!usePnp || Platform.isLinux())
+			// On Linux pcsclite 1.7.4, and Mac OSX 10.10, the PNP reader does
+			// not return immediately when there is already a reader present
+			// that isn't in the array. Thus there is a race condition between
+			// updateKnownReaders() and SCardGetStatusChange; if a reader is
+			// plugged in then, I think this function will block forever.
+			if (!usePnp || Platform.isLinux() || Platform.isMac())
 				if (updateKnownReaders())
 					return true;  // # of readers changed; return early.
 
