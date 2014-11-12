@@ -362,10 +362,14 @@ public class Smartcardio extends Provider {
 		public static final int SCARD_SHARE_DIRECT = 3;
 		public static final int SCARD_PROTOCOL_T0 = 1;
 		public static final int SCARD_PROTOCOL_T1 = 2;
-		public static final int SCARD_PROTOCOL_RAW = 4;
-		public static final int SCARD_PROTOCOL_T15 = 8;
+
+		//win32 public static final int SCARD_PROTOCOL_RAW = 0x0010000;
+		//pcsclite public static final int SCARD_PROTOCOL_RAW = 4;
+		//pcsclite public static final int SCARD_PROTOCOL_T15 = 8;
+
+		// aka SCARD_PROTOCOL_Tx in Windows
 		public static final int SCARD_PROTOCOL_ANY = SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1;
-		
+
 		public static final int SCARD_UNKNOWN = 0x01;
 		public static final int SCARD_ABSENT = 0x02;
 		public static final int SCARD_PRESENT = 0x04;
@@ -373,24 +377,44 @@ public class Smartcardio extends Provider {
 		public static final int SCARD_POWERED = 0x10;
 		public static final int SCARD_NEGOTIABLE = 0x20;
 		public static final int SCARD_SPECIFIC = 0x40;
-		
+
 		public JnaCardTerminal(Winscard.WinscardLibInfo libInfo, JnaCardTerminals cardTerminals, String name) {
 			this.libInfo = libInfo;
 			this.cardTerminals = cardTerminals;
 			this.name = name;
 		}
 		@Override public String getName() {return name;}
+		/**
+		 * Supported protocols:
+		 * <ul>
+		 * <li><code>T=0</code>
+		 * <li><code>T=1</code>
+		 * <li><code>*</code>
+		 * <li><code>DIRECT</code>
+		 * </ul>
+		 */
 		@Override public Card connect(String protocol) throws CardException {
-			int dwPreferredProtocols;
-			if ("T=0".equals(protocol)) dwPreferredProtocols = SCARD_PROTOCOL_T0;
-			else if ("T=1".equals(protocol)) dwPreferredProtocols = SCARD_PROTOCOL_T1;
-			else if ("*".equals(protocol)) dwPreferredProtocols = SCARD_PROTOCOL_ANY;
-			else if ("T=CL".equals(protocol)) dwPreferredProtocols = 0;  // and SCARD_SHARE_DIRECT
-			else throw new IllegalArgumentException("Protocol should be one of T=0, T=1, *, T=CL. Got " + protocol);
+			int dwPreferredProtocols, dwShareMode;
+			if ("T=0".equals(protocol)) {
+				dwPreferredProtocols = SCARD_PROTOCOL_T0;
+				dwShareMode = SCARD_SHARE_SHARED;
+			} else if ("T=1".equals(protocol)) {
+				dwPreferredProtocols = SCARD_PROTOCOL_T1;
+				dwShareMode = SCARD_SHARE_SHARED;
+			} else if ("*".equals(protocol)) {
+				dwPreferredProtocols = SCARD_PROTOCOL_ANY;
+				dwShareMode = SCARD_SHARE_SHARED;
+			} else if ("DIRECT".equalsIgnoreCase(protocol)) {
+				// Connect directly to reader to send control commands.
+				dwPreferredProtocols = 0;
+				dwShareMode = SCARD_SHARE_DIRECT;
+			} else {
+				throw new IllegalArgumentException("Protocol should be one of T=0, T=1, *, DIRECT. Got " + protocol);
+			}
 			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
 			DwordByReference pdwActiveProtocol = new DwordByReference();
-	
-			long err = libInfo.lib.SCardConnect(cardTerminals.scardContext, name, new Dword(SCARD_SHARE_SHARED), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol).longValue();
+
+			long err = libInfo.lib.SCardConnect(cardTerminals.scardContext, name, new Dword(dwShareMode), new Dword(dwPreferredProtocols), phCard, pdwActiveProtocol).longValue();
 			switch ((int)err) {
 			case SCARD_S_SUCCESS:
 				Winscard.SCardHandle scardHandle = phCard.getValue();
@@ -500,9 +524,8 @@ public class Smartcardio extends Provider {
 			switch (protocol) {
 			case JnaCardTerminal.SCARD_PROTOCOL_T0: return "T=0";
 			case JnaCardTerminal.SCARD_PROTOCOL_T1: return "T=1";
-			case JnaCardTerminal.SCARD_PROTOCOL_RAW: return "T=CL";  // TODO: is this right?
+			default: return "DIRECT";  // TODO: is this right?
 			}
-			throw new IllegalStateException("Unknown protocol: " + protocol);
 		}
 
 		@Override public JnaCardChannel getBasicChannel() {
@@ -802,20 +825,9 @@ public class Smartcardio extends Provider {
 		 * bytes received from the card.
 		 */
 		private int transmitRaw(ByteBuffer command, ByteBuffer response) throws JnaPCSCException {
-			Winscard.ScardIoRequest pioSendPci;
-			switch (card.protocol) {
-			case JnaCardTerminal.SCARD_PROTOCOL_T0:
-				pioSendPci = card.libInfo.SCARD_PCI_T0;
-				break;
-			case JnaCardTerminal.SCARD_PROTOCOL_T1:
-				pioSendPci = card.libInfo.SCARD_PCI_T1;
-				break;
-			case JnaCardTerminal.SCARD_PROTOCOL_RAW:
-				pioSendPci = card.libInfo.SCARD_PCI_RAW;
-				break;
-			default:
-				throw new IllegalStateException("Don't know how to transmit for protocol " + card.protocol);	
-			}
+			Winscard.ScardIoRequest pioSendPci = new Winscard.ScardIoRequest();
+			pioSendPci.dwProtocol = new Dword(card.protocol);
+			pioSendPci.cbPciLength = new Dword(pioSendPci.size());
 
 			DwordByReference recvLength = new DwordByReference(new Dword(response.remaining()));
 			check("SCardTransmit", card.libInfo.lib.SCardTransmit(card.scardHandle, pioSendPci, command, new Dword(command.remaining()), null, response, recvLength));
