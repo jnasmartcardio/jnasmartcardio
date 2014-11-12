@@ -1,3 +1,9 @@
+jnasmartcardio-0.2.4 (2014-11-12)
+===
+* [#20](https://github.com/jnasmartcardio/jnasmartcardio/issues/20) On OSX 10.10 Yosemite, CardTerminal.connect(String) threw JnaPCSCException(SCARD_E_INSUFFICIENT_BUFFER).
+* [#21](https://github.com/jnasmartcardio/jnasmartcardio/issues/21) On OSX 10.10 Yosemite, CardTerminals.waitForChange(long) waited forever.
+* Add ability to call CardTerminal.connect("DIRECT") to communicate with the terminal itself.
+
 jnasmartcardio-0.2.3 (2014-07-09)
 ===
 * [#19](https://github.com/jnasmartcardio/jnasmartcardio/issues/19) Card.transmitControlCommand failed on OS X.
