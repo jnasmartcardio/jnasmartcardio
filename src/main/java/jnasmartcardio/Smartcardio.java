@@ -42,7 +42,7 @@ public class Smartcardio extends Provider {
 	public static final String PROVIDER_NAME = "JNA2PCSC";
 	
 	public Smartcardio() {
-		super(PROVIDER_NAME, 0.0d, "JNA-to-PCSC Provider");
+		super(PROVIDER_NAME, 0.2d, "JNA-to-PCSC Provider");
 		put("TerminalFactory.PC/SC", JnaTerminalFactorySpi.class.getName());
 	}
 	
