@@ -1,3 +1,8 @@
+jnasmartcardio-0.2.5 (2015-05-17)
+===
+* [#22](https://github.com/jnasmartcardio/jnasmartcardio/pull/22) Fix bug introduced in v0.2.4: CardTerminal.connect(String) threw JnaPCSCException(SCARD_E_INVALID_PARAMETER) on OSX 10.9 and below.
+* [#23](https://github.com/jnasmartcardio/jnasmartcardio/pull/23) Have rough versioning of the provider.
+
 jnasmartcardio-0.2.4 (2014-11-12)
 ===
 * [#20](https://github.com/jnasmartcardio/jnasmartcardio/issues/20) On OSX 10.10 Yosemite, CardTerminal.connect(String) threw JnaPCSCException(SCARD_E_INSUFFICIENT_BUFFER).
