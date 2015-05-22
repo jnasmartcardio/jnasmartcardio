@@ -113,6 +113,23 @@ public class Smartcardio extends Provider {
 			this.knownReaders = createScardReaderStates(Collections.<String>emptyList(), usePnp, (SCardReaderState[])null);
 			this.zombieReaders = new ArrayList<SCardReaderState>();
 		}
+
+		/**
+		 * With {@link State#ALL}, {@link State#CARD_PRESENT}, or
+		 * {@link State#CARD_ABSENT}, returns the current list of terminals
+		 * filtered accordingly. With {@link State#CARD_INSERTION} or
+		 * {@link State#CARD_REMOVAL}, returns the list of terminals that were
+		 * added or removed at the end of the most recent
+		 * {@link #waitForChange(long)}/{@link #waitForChange()} call (it is not
+		 * safe to call waitForChange concurrently).
+		 *
+		 * <p>
+		 * Deviation from Sun's version: the first invocation using
+		 * State.CARD_REMOVAL or State.CARD_INSERTION will return an empty list
+		 * if there was no prior {@link #waitForChange(long)} instead of
+		 * returning a list that is possibly inconsistent with the internal
+		 * waitForChange state.
+		 */
 		@Override public List<CardTerminal> list(State state) throws CardException {
 			if (null == state)
 				throw new NullPointerException("State must be non-null. To get all terminals, call list() or list(State.ALL).");
@@ -288,20 +305,20 @@ public class Smartcardio extends Provider {
 
 		/**
 		 * Block until any card is inserted or removed, or until the timeout.
-		 * 
+		 *
 		 * <p>
 		 * Deviation from the Sun version: the first
 		 * {@link #waitForChange(long)} call always returns immediately. In
 		 * Sun's version, if the card is inserted between your {@link #list()}
 		 * call and the first {@link #waitForChange(long)} call, then your
 		 * application can wait forever.
-		 * 
+		 *
 		 * <p>
 		 * Note: this method returns early when any smartcard state has changed
 		 * (e.g. smartcard becomes in-use or idle). The caller cannot observe
 		 * these changes though. So the caller should be able to handle changes
 		 * that appear spurious.
-		 * 
+		 *
 		 * <p>
 		 * Likely exceptions
 		 * <ul>
