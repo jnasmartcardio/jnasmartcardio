@@ -1,3 +1,7 @@
+jnasmartcardio-0.2.6 (2015-12-05)
+===
+* [#24](https://github.com/jnasmartcardio/jnasmartcardio/issues/24) Finally fix the implementations of waitForCardAbsent and waitForCardPresent. (CardTerminal.waitForCardAbsent always returned immediately without waiting. CardTerminal.waitForCardPresent always waited forever.)
+
 jnasmartcardio-0.2.5 (2015-05-17)
 ===
 * [#22](https://github.com/jnasmartcardio/jnasmartcardio/pull/22) Fix bug introduced in v0.2.4: CardTerminal.connect(String) threw JnaPCSCException(SCARD_E_INVALID_PARAMETER) on OSX 10.9 and below.
