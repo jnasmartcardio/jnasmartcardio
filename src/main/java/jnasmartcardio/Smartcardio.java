@@ -455,16 +455,17 @@ public class Smartcardio extends Provider {
 			new SCardReaderState().toArray((Structure[])rgReaderStates);
 			SCardReaderState readerState = rgReaderStates[0];
 			readerState.szReader = name;
+			check("SCardGetStatusChange", libInfo.lib.SCardGetStatusChange(cardTerminals.scardContext, new Dword(0), rgReaderStates, new Dword(rgReaderStates.length)));
 			int remainingTimeout = (int)timeoutMs;
 			while (cardPresent != (0 != (readerState.dwEventState.intValue() & WinscardConstants.SCARD_STATE_PRESENT))) {
+				readerState.dwCurrentState = readerState.dwEventState;
+				readerState.dwEventState = new Dword(0);
 				long startTime = System.currentTimeMillis();
 				Dword err = libInfo.lib.SCardGetStatusChange(cardTerminals.scardContext, new Dword(remainingTimeout), rgReaderStates, new Dword(rgReaderStates.length));
 				long endTime = System.currentTimeMillis();
 				if (WinscardConstants.SCARD_E_TIMEOUT == err.intValue())
 					return false;
 				check("SCardGetStatusChange", err);
-				readerState.dwCurrentState = readerState.dwEventState;
-				readerState.dwEventState = new Dword(0);
 				if (remainingTimeout != WinscardConstants.INFINITE) {
 					if (remainingTimeout < endTime - startTime)
 						return false;
