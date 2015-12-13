@@ -17,8 +17,8 @@
   </target>
   <target name="dist" depends="compile" description="generate the distribution">
     <jar destfile="jnasmartcardio.jar" level="9">
-      <fileset dir="build"/>
-      <zipfileset src="lib/jna-4.2.1.jar" excludes="com/sun/jna/sunos-*/,com/sun/jna/win32ce-arm/,com/sun/jna/openbsd-*/"/>
+      <fileset dir="build" excludes="jnasmartcardio/tools/"/>
+      <zipfileset src="lib/jna-4.2.1.jar" excludes="com/sun/jna/sunos-*/,com/sun/jna/w32ce-*/,com/sun/jna/openbsd-*/,com/sun/jna/aix-*/,com/sun/jna/linux-ppc*/,com/sun/jna/linux-sparc*/"/>
     </jar>
   </target>
   <target name="clean" description="clean up">
