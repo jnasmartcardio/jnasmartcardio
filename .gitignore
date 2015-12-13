@@ -3,4 +3,4 @@ target/
 bin/
 build/
 jnasmartcardio.jar
-lib/jna-4.0.0.jar
+lib/
