@@ -4,21 +4,21 @@
   <target name="init">
     <mkdir dir="build"/>
     <mkdir dir="lib"/>
-    <get src="https://maven.java.net/content/repositories/releases/net/java/dev/jna/jna/4.1.0/jna-4.1.0.jar" dest="lib/jna-4.1.0.jar" verbose="true" skipexisting="true"/>
+    <get src="https://maven.java.net/content/repositories/releases/net/java/dev/jna/jna/4.2.1/jna-4.2.1.jar" dest="lib/jna-4.2.1.jar" verbose="true" skipexisting="true"/>
   </target>
   <target name="compile" depends="init" description="compile the source">
     <javac srcdir="src/main/java" destdir="build" includeantruntime="false" source="1.6" target="1.6" debug="true" debuglevel="lines,vars,source">
       <compilerarg value="-Xlint"/>
       <compilerarg value="-Xlint:-options"/>
       <classpath>
-        <pathelement location="lib/jna-4.1.0.jar"/>
+        <pathelement location="lib/jna-4.2.1.jar"/>
       </classpath>
     </javac>
   </target>
   <target name="dist" depends="compile" description="generate the distribution">
     <jar destfile="jnasmartcardio.jar" level="9">
       <fileset dir="build"/>
-      <zipfileset src="lib/jna-4.1.0.jar" excludes="com/sun/jna/sunos-*/,com/sun/jna/win32ce-arm/,com/sun/jna/openbsd-*/"/>
+      <zipfileset src="lib/jna-4.2.1.jar" excludes="com/sun/jna/sunos-*/,com/sun/jna/win32ce-arm/,com/sun/jna/openbsd-*/"/>
     </jar>
   </target>
   <target name="clean" description="clean up">
