@@ -33,7 +33,7 @@ Download the most recent published release from the Maven Central Repository. If
 	<dependency>
 		<groupId>io.github.jnasmartcardio</groupId>
 		<artifactId>jnasmartcardio</artifactId>
-		<version>0.2.4</version>
+		<version>0.2.6</version>
 	</dependency>
 
 To build from source, run the following command to compile, jar, and install to your local Maven repository. Don’t forget to also modify your own project’s pom.xml to depend on the same SNAPSHOT version. You may need to learn the [Maven version arcana](http://docs.codehaus.org/display/MAVEN/Dependency+Mediation+and+Conflict+Resolution).
@@ -50,6 +50,10 @@ Once you have jnasmartcardio in your classpath, there are 3 ways to use this sma
     * `TerminalFactory.getInstance("PC/SC", null, new Smartcardio());`
 
 Once you have a TerminalFactory, you call `cardTerminals = factory.terminals();`; see [javax.smartcardio API javadoc](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/package-summary.html).
+
+Documentation
+---
+The javadoc is uploaded to maven. You can see [javadoc at javadoc.io](http://www.javadoc.io/doc/io.github.jnasmartcardio/jnasmartcardio/0.2.5)
 
 Changelog
 ---
@@ -74,6 +78,8 @@ Generally, all methods will throw a JnaPCSCException if the daemon/service is of
 JnaCardTerminals owns the SCardContext native handle, and you should call cardTerminals.close() to clean up. Unfortunately, close() does not exist on the base class, so this library also closes it in its finalizer.
 
 To make the implementation simpler, the caller must be able to handle spurious wakeups when calling [waitForChange(long)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CardTerminals.html#waitForChange%28long%29). In other words, `list(State.CARD_REMOVAL)` and `list(State.CARD_INSERTION)` might both be empty lists after waitForChange returns.
+
+[list(State)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CardTerminals.html#list%28javax.smartcardio.CardTerminals.State%29) with `CARD_INSERTION`/`CARD_REMOVAL` always reflects the result of the previous waitForChange call. If there was no previous waitForChange call, it returns an empty list; I do _not_ return the current `CARD_PRESENT`/`CARD_ABSENT` value as Sun does because this would be inconsistent with the internal waitForChange state.
 
 As well as waking up when a card is inserted/removed, waitForChange will also wake up when a card reader is plugged in/unplugged. However, in Windows 8, when all readers are unplugged the service will immediately exit, so waitForChange will throw an exception instead of returning.
 
