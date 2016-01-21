@@ -438,6 +438,10 @@ public class Smartcardio extends Provider {
 				// Connect directly to reader to send control commands.
 				dwPreferredProtocols = 0;
 				dwShareMode = SCARD_SHARE_DIRECT;
+			} else if ("EXCLUSIVE".equalsIgnoreCase(protocol)) {
+				// Proprietary mode, for exclusive acces. XXX: what about T=0/T=1?
+				dwPreferredProtocols = SCARD_PROTOCOL_ANY;
+				dwShareMode = SCARD_SHARE_EXCLUSIVE;
 			} else {
 				throw new IllegalArgumentException("Protocol should be one of T=0, T=1, *, DIRECT. Got " + protocol);
 			}
