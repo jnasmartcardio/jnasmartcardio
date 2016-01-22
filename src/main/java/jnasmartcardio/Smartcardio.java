@@ -421,29 +421,32 @@ public class Smartcardio extends Provider {
 		 * <li><code>T=1</code>
 		 * <li><code>*</code>
 		 * <li><code>DIRECT</code>
+		 * <li><code>EXCLUSIVE;T=0</code>
+		 * <li><code>EXCLUSIVE;T=1</code>
+		 * <li><code>EXCLUSIVE;*</code>
 		 * </ul>
 		 */
 		@Override public Card connect(String protocol) throws CardException {
-			int dwPreferredProtocols, dwShareMode;
+			int dwPreferredProtocols;
+			int dwShareMode = SCARD_SHARE_SHARED;
+			protocol = protocol.toUpperCase();
+			// Proprietary extension
+			if (protocol.startsWith("EXCLUSIVE;")) {
+				dwShareMode = SCARD_SHARE_EXCLUSIVE;
+				protocol = protocol.substring("EXCLUSIVE;".length());
+			}
 			if ("T=0".equals(protocol)) {
 				dwPreferredProtocols = SCARD_PROTOCOL_T0;
-				dwShareMode = SCARD_SHARE_SHARED;
 			} else if ("T=1".equals(protocol)) {
 				dwPreferredProtocols = SCARD_PROTOCOL_T1;
-				dwShareMode = SCARD_SHARE_SHARED;
 			} else if ("*".equals(protocol)) {
 				dwPreferredProtocols = SCARD_PROTOCOL_ANY;
-				dwShareMode = SCARD_SHARE_SHARED;
 			} else if ("DIRECT".equalsIgnoreCase(protocol)) {
 				// Connect directly to reader to send control commands.
 				dwPreferredProtocols = 0;
 				dwShareMode = SCARD_SHARE_DIRECT;
-			} else if ("EXCLUSIVE".equalsIgnoreCase(protocol)) {
-				// Proprietary mode, for exclusive acces. XXX: what about T=0/T=1?
-				dwPreferredProtocols = SCARD_PROTOCOL_ANY;
-				dwShareMode = SCARD_SHARE_EXCLUSIVE;
 			} else {
-				throw new IllegalArgumentException("Protocol should be one of T=0, T=1, *, DIRECT. Got " + protocol);
+				throw new IllegalArgumentException("Protocol should be one of (prepended with EXCLUSIVE;) T=0, T=1, *, DIRECT. Got " + protocol);
 			}
 			Winscard.SCardHandleByReference phCard = new Winscard.SCardHandleByReference();
 			DwordByReference pdwActiveProtocol = new DwordByReference();

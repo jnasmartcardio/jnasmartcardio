@@ -87,6 +87,10 @@ As well as waking up when a card is inserted/removed, waitForChange will also wa
 
 [connect(String protocol)](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/CardTerminal.html#connect%28java.lang.String%29) supports exactly the same connection modes as Sun does: T=0, T=1, T=*, and T=DIRECT (T=CL is mentioned in the smartcardio documentation but is not accepted). Unlike Sun, it does not return the same connection when you connect twice.
 
+If the protocol is prepended with `EXCLUSIVE;` the usual `SCARD_SHARE_SHARED` mode shall be replaced with `SCARD_SHARE_EXCLUSIVE`.
+This allows to use a safely locked reader on Windows 8+ where otherwise a transaction initiated with `SCardBeginTransaction` (`beginExclusive()`) would be closed
+after 5 seconds and `SCARD_W_RESET_CARD` returned. See [this post on MSDN](https://msdn.microsoft.com/en-us/library/windows/desktop/aa379469%28v=vs.85%29.aspx).
+
 ### JnaCard
 
 [beginExclusive()](http://docs.oracle.com/javase/7/docs/jre/api/security/smartcardio/spec/javax/smartcardio/Card.html#beginExclusive%28%29) simply calls SCardBeginTransaction. It does not use thread-local storage, as Sun does.
