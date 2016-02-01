@@ -444,6 +444,10 @@ public class Smartcardio extends Provider {
 			} else if ("DIRECT".equalsIgnoreCase(protocol)) {
 				// Connect directly to reader to send control commands.
 				dwPreferredProtocols = 0;
+				// OSX 10.11 would otherwise fail with SCARD_E_INVALID_VALUE
+				if (Platform.isMac()) {
+					dwPreferredProtocols = SCARD_PROTOCOL_ANY;
+				}
 				dwShareMode = SCARD_SHARE_DIRECT;
 			} else {
 				throw new IllegalArgumentException("Protocol should be one of (prepended with EXCLUSIVE;) T=0, T=1, *, DIRECT. Got " + protocol);
