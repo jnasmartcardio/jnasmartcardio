@@ -110,7 +110,7 @@ public class Smartcardio extends Provider {
 		public JnaCardTerminals(Winscard.WinscardLibInfo libInfo, Winscard.SCardContext scardContext) {
 			this.libInfo = libInfo;
 			this.scardContext = scardContext;
-			this.knownReaders = createScardReaderStates(Collections.<String>emptyList(), usePnp, (SCardReaderState[])null);
+			this.knownReaders = createScardReaderStates(Collections.<String>emptyList(), usePnp, new SCardReaderState[0]);
 			this.zombieReaders = new ArrayList<SCardReaderState>();
 		}
 
