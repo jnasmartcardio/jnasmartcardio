@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<project name="jnasmartcardio" default="dist" basedir=".">
+  <description>ANT build file for jnasmartcardio</description>
+  <target name="init">
+    <mkdir dir="build"/>
+    <mkdir dir="lib"/>
+    <get src="https://maven.java.net/content/repositories/releases/net/java/dev/jna/jna/4.2.1/jna-4.2.1.jar" dest="lib" verbose="true" skipexisting="true"/>
+    <checksum algorithm="SHA-256" file="lib/jna-4.2.1.jar" property="edc2a2c4f9b0b55fdc66aef3c9a9ddfff97e4b892842d4c0e1bc6eaff704abcb" verifyProperty="jnaOK"/>
+    <fail message="Checksum failure"><condition><or><isfalse value="${jnaOK}"/></or></condition></fail>
+  </target>
+  <target name="compile" depends="init" description="compile the source">
+    <javac srcdir="src/main/java" destdir="build" includeantruntime="false" source="1.6" target="1.6" debug="true" debuglevel="lines,vars,source">
+      <compilerarg value="-Xlint"/>
+      <compilerarg value="-Xlint:-options"/>
+      <classpath>
+        <pathelement location="lib/jna-4.2.1.jar"/>
+      </classpath>
+    </javac>
+  </target>
+  <target name="dist" depends="compile" description="generate the distribution">
+    <jar destfile="jnasmartcardio.jar" level="9">
+      <fileset dir="build" excludes="jnasmartcardio/tools/"/>
+      <zipfileset src="lib/jna-4.2.1.jar" excludes="com/sun/jna/sunos-*/,com/sun/jna/w32ce-*/,com/sun/jna/openbsd-*/,com/sun/jna/aix-*/,com/sun/jna/linux-ppc*/,com/sun/jna/linux-sparc*/"/>
+    </jar>
+  </target>
+  <target name="clean" description="clean up">
+    <delete dir="build"/>
+    <delete file="jnasmartcardio.jar"/>
+  </target>
+</project>
