@@ -33,7 +33,7 @@ Download the most recent published release from the Maven Central Repository. If
 	<dependency>
 		<groupId>io.github.jnasmartcardio</groupId>
 		<artifactId>jnasmartcardio</artifactId>
-		<version>0.2.6</version>
+		<version>0.2.7</version>
 	</dependency>
 
 To build from source, run the following command to compile, jar, and install to your local Maven repository. Don’t forget to also modify your own project’s pom.xml to depend on the same SNAPSHOT version. You may need to learn the [Maven version arcana](http://docs.codehaus.org/display/MAVEN/Dependency+Mediation+and+Conflict+Resolution).
@@ -53,7 +53,7 @@ Once you have a TerminalFactory, you call `cardTerminals = factory.terminals();`
 
 Documentation
 ---
-The javadoc is uploaded to maven. You can see [javadoc at javadoc.io](http://www.javadoc.io/doc/io.github.jnasmartcardio/jnasmartcardio/0.2.5)
+The javadoc is uploaded to maven. You can see [javadoc at javadoc.io](http://www.javadoc.io/doc/io.github.jnasmartcardio/jnasmartcardio/0.2.7)
 
 Changelog
 ---

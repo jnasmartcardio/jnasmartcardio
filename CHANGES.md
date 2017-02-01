@@ -1,3 +1,7 @@
+jnasmartcardio-0.2.7 (2015-12-05)
+===
+* [#31](https://github.com/jnasmartcardio/jnasmartcardio/pull/31) Depend on JNA 4.0.0 explicitly since the dependency range [3.2.5, 4.0.0] stopped working. The user can override JNA to anything between 3.2.5 and the latest 4.3.0.
+
 jnasmartcardio-0.2.6 (2015-12-05)
 ===
 * [#24](https://github.com/jnasmartcardio/jnasmartcardio/issues/24) Finally fix the implementations of waitForCardAbsent and waitForCardPresent. (CardTerminal.waitForCardAbsent always returned immediately without waiting. CardTerminal.waitForCardPresent always waited forever.)
