@@ -282,7 +282,7 @@ class Winscard {
 	}
 	public static WinscardLibInfo openLib() {
 		String libraryName = Platform.isWindows() ? WINDOWS_PATH : Platform.isMac() ? MAC_PATH : PCSC_PATH;
-		HashMap<Object, Object> options = new HashMap<Object, Object>();
+		HashMap<String, Object> options = new HashMap<String, Object>();
 		if (Platform.isWindows()) {
 			options.put(Library.OPTION_FUNCTION_MAPPER, new WindowsFunctionMapper());
 		} else if (Platform.isMac()) {
