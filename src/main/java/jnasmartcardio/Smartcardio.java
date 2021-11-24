@@ -556,8 +556,14 @@ public class Smartcardio extends Provider {
 			check("SCardEndTransaction", libInfo.lib.SCardEndTransaction(scardHandle, new Dword(SCARD_LEAVE_CARD)));
 			// TODO: handle error SCARD_W_RESET_CARD esp. in Windows
 		}
+		
+		public void disconnect(int reset) throws CardException {
+			int dwDisposition = reset;
+			check("SCardDisconnect", libInfo.lib.SCardDisconnect(scardHandle, new Dword(dwDisposition)));
+		}
 
-		@Override public void disconnect(boolean reset) throws CardException {
+		@Override
+		public void disconnect(boolean reset) throws CardException {
 			int dwDisposition = reset ? SCARD_RESET_CARD : SCARD_LEAVE_CARD;
 			check("SCardDisconnect", libInfo.lib.SCardDisconnect(scardHandle, new Dword(dwDisposition)));
 		}
